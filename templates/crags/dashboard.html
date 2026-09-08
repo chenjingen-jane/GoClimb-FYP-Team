@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    body { background: #f1f5f9 !important; }
+    main { display: block !important; padding: 0 !important; }
+
+    .dash-hero {
+        background: linear-gradient(rgba(15,23,42,0.82), rgba(15,23,42,0.9));
+        color: white; padding: 40px 20px 32px;
+    }
+    .dash-hero h1 { max-width: 1100px; margin: 0 auto 6px; font-size: 30px; font-weight: 600; }
+    .dash-hero p { max-width: 1100px; margin: 0 auto; opacity: 0.82; }
+
+    .dash-wrap { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+
+    .stat-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 30px;
+    }
+    .stat-card {
+        background: white; border-radius: 16px; padding: 22px; text-align: center;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+    }
+    .stat-card .big { font-size: 34px; font-weight: 700; color: #3b82f6; }
+    .stat-card .lbl { color: #64748b; font-size: 14px; margin-top: 4px; }
+
+    .dash-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; }
+    @media (max-width: 850px) { .dash-cols { grid-template-columns: 1fr; } .stat-grid { grid-template-columns: repeat(2,1fr);} }
+
+    .panel {
+        background: white; border-radius: 16px; padding: 24px;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.06); margin-bottom: 24px;
+    }
+    .panel h3 { color: #1e293b; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+    .panel h3 i { color: #3b82f6; margin-right: 8px; }
+
+    .crag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 16px; }
+    .mini-card { background:#f8fafc; border-radius:12px; padding:14px; border:1px solid #eef2f7; }
+    .mini-card h4 { color:#1e293b; font-size:16px; margin-bottom:4px; }
+    .mini-card .sub { color:#64748b; font-size:13px; }
+    .mini-card a { text-decoration:none; }
+
+    .feed-item { padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-item .t { color:#1e293b; font-weight:600; font-size:15px; text-decoration:none; }
+    .feed-item .t:hover { color:#3b82f6; }
+    .feed-item .m { color:#94a3b8; font-size:12px; margin-top:3px; }
+    .pill { display:inline-block; background:#dbeafe; color:#1d4ed8; padding:2px 9px; border-radius:12px; font-size:11px; font-weight:600; text-decoration:none; }
+    .empty { color:#94a3b8; font-size:14px; padding:10px 0; }
+
+    .dist-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .dist-row .name { width:80px; color:#475569; font-size:14px; }
+    .dist-bar { flex:1; height:14px; background:#e2e8f0; border-radius:8px; overflow:hidden; }
+    .dist-bar > span { display:block; height:100%; background:#3b82f6; border-radius:8px; }
+    .dist-row .num { width:30px; text-align:right; color:#475569; font-size:13px; font-weight:600; }
+</style>
+
+<div class="dash-hero">
+    <h1><i class="fas fa-tachometer-alt"></i> Welcome back, {{ username }}</h1>
+    <p>Your climbing activity at a glance.</p>
+</div>
+
+<div class="dash-wrap">
+    <div class="stat-grid">
+        <div class="stat-card"><div class="big">{{ fav_count }}</div><div class="lbl">Saved Crags</div></div>
+        <div class="stat-card"><div class="big">{{ post_count }}</div><div class="lbl">Forum Posts</div></div>
+        <div class="stat-card"><div class="big">{{ comment_count }}</div><div class="lbl">Comments</div></div>
+        <div class="stat-card"><div class="big">{{ like_count }}</div><div class="lbl">Likes Given</div></div>
+    </div>
+
+    <div class="dash-cols">
+        <div>
+            <div class="panel">
+                <h3><i class="fas fa-heart"></i> Your Favorite Crags</h3>
+                {% if favorites %}
+                <div class="crag-grid">
+                    {% for f in favorites %}
+                    <a class="mini-card" href="/crag/{{ f.crag.slug }}/">
+                        <h4>{{ f.crag.name }}</h4>
+                        <div class="sub">{{ f.crag.get_rock_type_display }} · {{ f.crag.difficulty_min }}–{{ f.crag.difficulty_max }}</div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="empty">No favorites yet. <a href="/search/" style="color:#3b82f6;">Explore crags →</a></p>
+                {% endif %}
+            </div>
+
+            <div class="panel">
+                <h3><i class="fas fa-comments"></i> Recent Forum Activity</h3>
+                {% if my_posts %}
+                    {% for p in my_posts %}
+                    <div class="feed-item">
+                        <a class="t" href="/forum/">{{ p.title }}</a>
+                        {% if p.crag %}<a class="pill" href="/crag/{{ p.crag.slug }}/">{{ p.crag.name }}</a>{% endif %}
+                        <div class="m">{{ p.likes.count }} likes · {{ p.comments.count }} comments · {{ p.created_at|date:"M d, Y" }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty">You haven't posted yet. <a href="/forum/" style="color:#3b82f6;">Join the community →</a></p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div>
+            <div class="panel">
+                <h3><i class="fas fa-chart-pie"></i> Crag Type Mix</h3>
+                {% if rock_counts %}
+                    {% for name, count in rock_counts.items %}
+                    <div class="dist-row">
+                        <div class="name">{{ name }}</div>
+                        <div class="dist-bar"><span style="width:{% widthratio count rock_total 100 %}%"></span></div>
+                        <div class="num">{{ count }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty">Save some crags to see your mix.</p>
+                {% endif %}
+            </div>
+
+            <div class="panel">
+                <h3><i class="fas fa-reply"></i> Your Comments</h3>
+                {% if my_comments %}
+                    {% for c in my_comments %}
+                    <div class="feed-item">
+                        <a class="t" href="/forum/">on "{{ c.post.title }}"</a>
+                        <div class="m">{{ c.created_at|date:"M d, Y" }} · {{ c.content|truncatechars:60 }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty">No comments yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

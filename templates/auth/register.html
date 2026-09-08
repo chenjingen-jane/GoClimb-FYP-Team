@@ -1,0 +1,176 @@
+<!-- templates/auth/register.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Authentication Card Styles */
+    .auth-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(15px);
+        padding: 40px;
+
+        border-radius: 16px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .auth-card h3 {
+        text-align: center;
+        color: #2c3e50;
+        font-size: 26px;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    .auth-card p.subtitle {
+        text-align: center;
+        color: #7f8c8d;
+        font-size: 14px;
+        margin-bottom: 30px;
+    }
+
+    /* Input Group Styles */
+    .input-group {
+        position: relative;
+        margin-bottom: 20px;
+    }
+
+    .input-group i {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #7f8c8d;
+        font-size: 18px;
+    }
+
+    .input-group input {
+        width: 100%;
+        padding: 15px 15px 15px 45px;
+        border: 2px solid #e0e6ed;
+        border-radius: 8px;
+        font-size: 15px;
+        transition: all 0.3s ease;
+        outline: none;
+    }
+
+    /* Input Focus Effects - Blue Theme */
+    .input-group input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+    }
+
+    .input-group input:focus + i {
+        color: #3b82f6;
+    }
+
+    /* Submit Button Styles - Blue Gradient */
+    .submit-btn {
+        width: 100%;
+        padding: 15px;
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        margin-top: 10px;
+    }
+
+    .submit-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Footer Links */
+    .form-footer {
+        text-align: center;
+        margin-top: 25px;
+        font-size: 14px;
+        color: #7f8c8d;
+    }
+
+    .form-footer a {
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.3s;
+    }
+
+    .form-footer a:hover {
+        color: #1d4ed8;
+        text-decoration: underline;
+    }
+</style>
+
+<div class="auth-card">
+    <h3>Join Go Climb</h3>
+    <p class="subtitle">Create your account to start exploring</p>
+
+    <form id="register-form" method="POST">
+        <!-- {% csrf_token %} ensures the csrftoken cookie is set for the fetch call -->
+        {% csrf_token %}
+
+        <div class="input-group">
+            <i class="fas fa-user"></i>
+            <input type="text" name="username" placeholder="Username" required>
+        </div>
+
+        <div class="input-group">
+            <i class="fas fa-envelope"></i>
+            <input type="email" name="email" placeholder="Email Address" required>
+        </div>
+
+        <div class="input-group">
+            <i class="fas fa-lock"></i>
+            <input type="password" name="password" placeholder="Password" required>
+        </div>
+
+        <div class="input-group">
+            <i class="fas fa-check-circle"></i>
+            <input type="password" name="password_confirm" placeholder="Confirm Password" required>
+        </div>
+
+        <button type="submit" class="submit-btn">
+            Create Account
+        </button>
+    </form>
+
+    <div class="form-footer">
+        <p>Already have an account? <a href="/login/">Log in here</a></p>
+    </div>
+</div>
+
+<script>
+    function getCookie(name) {
+        const m = document.cookie.split('; ').find(c => c.startsWith(name + '='));
+        return m ? decodeURIComponent(m.split('=')[1]) : '';
+    }
+    document.getElementById('register-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const form = e.target;
+        const csrftoken = getCookie('csrftoken');
+        const res = await fetch('/api/auth/register/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            credentials: 'include',
+            body: JSON.stringify({
+                username: form.username.value,
+                email: form.email.value,
+                password: form.password.value,
+                password_confirm: form.password_confirm.value
+            })
+        });
+        const result = await res.json();
+        if (res.ok && result.success) {
+            alert('Registration successful, you are now logged in automatically');
+            window.location.href = '/home/';
+        } else {
+            alert(result.error || 'Registration failed, please try again');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Override the centered login layout so the dashboard uses the full screen */
+    main {
+        display: block !important;
+        padding: 40px 20px !important;
+    }
+
+    .dashboard-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    /* Welcome & Search Section */
+    .header-section {
+        color: white;
+        margin-bottom: 40px;
+    }
+
+    .header-section h2 {
+        font-size: 36px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .search-bar {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+    }
+
+    .search-bar input {
+        flex: 1;
+        padding: 15px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        outline: none;
+    }
+
+    .search-bar button {
+        padding: 15px 30px;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+    .search-bar button:hover {
+        background: #2563eb;
+    }
+
+    /* Crag Grid Cards */
+    .crag-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 25px;
+    }
+
+    .crag-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 16px;
+        padding: 25px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        transition: transform 0.3s ease;
+    }
+
+    .crag-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .crag-card h4 {
+        color: #1e293b;
+        font-size: 22px;
+        margin-bottom: 8px;
+    }
+
+    .crag-card p.location {
+        color: #64748b;
+        font-size: 14px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .tags {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .tag {
+        background: #e2e8f0;
+        color: #475569;
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .view-btn {
+        display: block;
+        text-align: center;
+        width: 100%;
+        padding: 12px;
+        background: transparent;
+        color: #3b82f6;
+        border: 2px solid #3b82f6;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+
+    .view-btn:hover {
+        background: #3b82f6;
+        color: white;
+    }
+</style>
+
+<div class="dashboard-container">
+    
+    <div class="header-section">
+        <h2>Find Your Next Route</h2>
+        <p>Explore nearby crags, check real-time weather, and plan your climb.</p>
+        
+        <div class="search-bar">
+            <input type="text" placeholder="Search by crag name, difficulty, or location...">
+            <button><i class="fas fa-search"></i> Search</button>
+        </div>
+    </div>
+
+    <!-- Static Placeholder Cards for UI Testing -->
+    <div class="crag-grid">
+        
+        <!-- Card 1 -->
+        <div class="crag-card">
+            <h4>Dairy Farm Quarry</h4>
+            <p class="location"><i class="fas fa-map-marker-alt"></i> Natural Rock • Outdoor</p>
+            <div class="tags">
+                <span class="tag">Sport Climbing</span>
+                <span class="tag">25 Routes</span>
+            </div>
+            <!-- This link connects directly to the crag_detail page! -->
+            <a href="/crag/1/" class="view-btn">View Details</a>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="crag-card">
+            <h4>Bukit Timah Granite</h4>
+            <p class="location"><i class="fas fa-map-marker-alt"></i> Natural Rock • Outdoor</p>
+            <div class="tags">
+                <span class="tag">Bouldering</span>
+                <span class="tag">12 Routes</span>
+            </div>
+            <a href="/crag/2/" class="view-btn">View Details</a>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="crag-card">
+            <h4>The Cliff Project</h4>
+            <p class="location"><i class="fas fa-map-marker-alt"></i> Indoor Wall • Air-Conditioned</p>
+            <div class="tags">
+                <span class="tag">Top Rope</span>
+                <span class="tag">Beginner Friendly</span>
+            </div>
+            <a href="/crag/3/" class="view-btn">View Details</a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

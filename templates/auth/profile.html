@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .profile-card {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 40px;
+        border-radius: 16px;
+        text-align: center;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .profile-card i.fa-user-circle {
+        font-size: 80px;
+        color: #3b82f6;
+        margin-bottom: 15px;
+    }
+
+    .logout-btn {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 15px;
+        background: #ef4444; /* Standard alert red */
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: bold;
+        margin-top: 30px;
+        transition: background 0.3s;
+    }
+
+    .logout-btn:hover {
+        background: #dc2626; /* Darker red on hover */
+    }
+</style>
+
+<div class="profile-card">
+    <i class="fas fa-user-circle"></i>
+    <h2>Climber Profile</h2>
+    <p style="color: #64748b;">Ready for the next send!</p>
+    
+    <!-- Here is your missing Logout Button! -->
+    <a href="/login/" class="logout-btn">
+        <i class="fas fa-sign-out-alt"></i> Log Out
+    </a>
+</div>
+{% endblock %}

@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    body { background: #f1f5f9 !important; }
+    main { display: block !important; padding: 0 !important; }
+
+    .forum-hero {
+        background: linear-gradient(rgba(15,23,42,0.8), rgba(15,23,42,0.9));
+        color: white; padding: 38px 20px 30px;
+    }
+    .forum-hero h1 { max-width: 1000px; margin: 0 auto 6px; font-size: 30px; font-weight: 600; }
+    .forum-hero p { max-width: 1000px; margin: 0 auto; opacity: 0.82; }
+
+    .forum-wrap { max-width: 1000px; margin: 34px auto; padding: 0 20px; }
+
+    .composer {
+        background: white; border-radius: 16px; padding: 24px;
+        box-shadow: 0 8px 18px rgba(0,0,0,0.08); margin-bottom: 28px;
+    }
+    .composer h3 { color: #1e293b; margin-bottom: 14px; font-size: 19px; }
+    .composer input, .composer textarea, .composer select {
+        width: 100%; padding: 12px 14px; margin-bottom: 12px;
+        border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 15px;
+        font-family: 'Poppins', sans-serif; outline: none; resize: vertical;
+    }
+    .composer input:focus, .composer textarea:focus, .composer select:focus { border-color: #3b82f6; }
+    .composer .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .composer .row > * { flex: 1; min-width: 200px; }
+    .post-btn {
+        background: #3b82f6; color: white; border: none; border-radius: 10px;
+        padding: 12px 26px; font-weight: 600; font-size: 15px; cursor: pointer;
+        transition: background 0.3s;
+    }
+    .post-btn:hover { background: #2563eb; }
+    .composer .hint { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+
+    .post-card {
+        background: white; border-radius: 16px; padding: 22px;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.06); margin-bottom: 18px;
+    }
+    .post-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .post-title { color: #1e293b; font-size: 20px; font-weight: 600; }
+    .post-meta { color: #64748b; font-size: 13px; margin: 4px 0 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .crag-badge {
+        background: #dbeafe; color: #1d4ed8; padding: 3px 10px; border-radius: 20px;
+        font-size: 12px; font-weight: 600; text-decoration: none;
+    }
+    .crag-badge:hover { background: #bfdbfe; }
+    .post-content { color: #334155; line-height: 1.7; font-size: 15px; white-space: pre-wrap; }
+
+    .post-actions { display: flex; gap: 14px; margin-top: 14px; align-items: center; }
+    .like-btn, .comment-toggle {
+        background: none; border: 1.5px solid #e2e8f0; color: #64748b;
+        border-radius: 20px; padding: 7px 16px; cursor: pointer; font-weight: 600;
+        font-size: 14px; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .like-btn:hover, .comment-toggle:hover { border-color: #3b82f6; color: #3b82f6; }
+    .like-btn.liked { background: #ef4444; border-color: #ef4444; color: white; }
+    .like-btn.liked:hover { background: #dc2626; border-color: #dc2626; }
+
+    .comments { margin-top: 14px; border-top: 1px solid #f1f5f9; padding-top: 14px; display: none; }
+    .comments.open { display: block; }
+    .comment {
+        background: #f8fafc; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+    }
+    .comment .who { font-weight: 600; color: #334155; font-size: 14px; }
+    .comment .when { color: #94a3b8; font-size: 12px; margin-left: 8px; }
+    .comment .body { color: #475569; font-size: 14px; margin-top: 4px; white-space: pre-wrap; }
+    .comment-form { display: flex; gap: 10px; margin-top: 10px; }
+    .comment-form textarea {
+        flex: 1; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px;
+        font-family: 'Poppins', sans-serif; resize: vertical; font-size: 14px; outline: none;
+    }
+    .comment-form textarea:focus { border-color: #3b82f6; }
+    .comment-form button {
+        background: #10b981; color: white; border: none; border-radius: 10px;
+        padding: 0 20px; font-weight: 600; cursor: pointer;
+    }
+    .comment-form button:hover { background: #059669; }
+
+    .empty-state { text-align: center; padding: 50px 20px; color: #64748b; font-size: 17px; }
+    .loading { text-align: center; padding: 40px; color: #94a3b8; }
+</style>
+
+<div class="forum-hero">
+    <h1><i class="fas fa-comments"></i> Climber Community</h1>
+    <p>Share beta, ask questions, post trip reports and find partners.</p>
+</div>
+
+<div class="forum-wrap">
+    <div class="composer">
+        <h3><i class="fas fa-pen"></i> Start a discussion</h3>
+        <input type="text" id="post-title" placeholder="Title — e.g. Best warm-up at Dairy Farm?">
+        <textarea id="post-content" rows="4" placeholder="What's on your mind, climber?"></textarea>
+        <div class="row">
+            <select id="post-crag">
+                <option value="">No specific crag</option>
+            </select>
+            <button class="post-btn" id="post-btn"><i class="fas fa-paper-plane"></i> Post</button>
+        </div>
+        <div class="hint">Posting requires an account. You'll be sent to login if needed.</div>
+    </div>
+
+    <p class="loading" id="forum-loading"><i class="fas fa-spinner fa-spin"></i> Loading discussions…</p>
+    <div id="post-list"></div>
+</div>
+
+<script>
+    window.__isAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
+    var PREFILL_CRAG = "{{ crag_slug|escapejs }}";
+
+    function getCookie(name) {
+        var m = document.cookie.match('(^|; )' + name + '=([^;]*)');
+        return m ? decodeURIComponent(m[2]) : null;
+    }
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+        });
+    }
+    function timeAgo(iso) {
+        var d = new Date(iso), now = new Date();
+        var s = Math.floor((now - d) / 1000);
+        if (s < 60) return 'just now';
+        if (s < 3600) return Math.floor(s/60) + 'm ago';
+        if (s < 86400) return Math.floor(s/3600) + 'h ago';
+        return Math.floor(s/86400) + 'd ago';
+    }
+
+    // ---- Load crags for the dropdown ----
+    function loadCragOptions() {
+        fetch('/api/crags/', { credentials: 'include' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var sel = document.getElementById('post-crag');
+                (data.results || []).forEach(function (c) {
+                    var o = document.createElement('option');
+                    o.value = c.id; o.textContent = c.name;
+                    sel.appendChild(o);
+                });
+                if (PREFILL_CRAG) {
+                    var match = data.results.find(function (c) { return c.slug === PREFILL_CRAG; });
+                    if (match) sel.value = match.id;
+                }
+            })
+            .catch(function () {});
+    }
+
+    // ---- Render posts ----
+    function buildPost(p) {
+        var card = document.createElement('div');
+        card.className = 'post-card';
+        var cragBadge = p.crag_slug
+            ? '<a class="crag-badge" href="/crag/' + p.crag_slug + '/"><i class="fas fa-mountain"></i> ' + escapeHtml(p.crag_name) + '</a>'
+            : '';
+        card.innerHTML =
+            '<div class="post-head"><div>' +
+                '<div class="post-title">' + escapeHtml(p.title) + '</div>' +
+                '<div class="post-meta"><span><i class="fas fa-user"></i> ' + escapeHtml(p.author) + '</span>' +
+                '<span><i class="far fa-clock"></i> ' + timeAgo(p.created_at) + '</span>' +
+                cragBadge + '</div>' +
+            '</div></div>' +
+            '<div class="post-content">' + escapeHtml(p.content) + '</div>' +
+            '<div class="post-actions">' +
+                '<button class="like-btn ' + (p.is_liked ? 'liked' : '') + '" data-id="' + p.id + '">' +
+                    '<i class="fas fa-heart"></i> <span class="lc">' + p.like_count + '</span></button>' +
+                '<button class="comment-toggle" data-id="' + p.id + '">' +
+                    '<i class="fas fa-comment"></i> <span class="cc">' + p.comment_count + '</span> Comments</button>' +
+            '</div>' +
+            '<div class="comments" id="comments-' + p.id + '">' +
+                '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>' +
+                '<div class="comment-form">' +
+                    '<textarea placeholder="Write a reply…"></textarea>' +
+                    '<button class="cbtn" data-id="' + p.id + '">Reply</button>' +
+                '</div>' +
+            '</div>';
+        return card;
+    }
+
+    function loadPosts() {
+        fetch('/api/forum/posts/', { credentials: 'include' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                document.getElementById('forum-loading').style.display = 'none';
+                var list = document.getElementById('post-list');
+                list.innerHTML = '';
+                if (!data.results.length) {
+                    list.innerHTML = '<div class="empty-state"><i class="fas fa-comments" style="font-size:38px;opacity:.3"></i><br><br>No posts yet. Be the first to start a discussion!</div>';
+                    return;
+                }
+                data.results.forEach(function (p) { list.appendChild(buildPost(p)); });
+                bindPostEvents();
+            })
+            .catch(function () {
+                document.getElementById('forum-loading').textContent = 'Failed to load the community feed.';
+            });
+    }
+
+    function bindPostEvents() {
+        // Like
+        document.querySelectorAll('.like-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!window.__isAuthenticated) { window.location.href = '/login/'; return; }
+                var id = btn.getAttribute('data-id');
+                fetch('/api/forum/posts/' + id + '/like/', {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+                }).then(function (r) {
+                    if (r.status === 401) { window.location.href = '/login/'; return; }
+                    return r.json();
+                }).then(function (d) {
+                    if (!d) return;
+                    btn.classList.toggle('liked', d.is_liked);
+                    btn.querySelector('.lc').textContent = d.like_count;
+                });
+            });
+        });
+
+        // Toggle comments
+        document.querySelectorAll('.comment-toggle').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var id = btn.getAttribute('data-id');
+                var box = document.getElementById('comments-' + id);
+                if (box.classList.contains('open')) { box.classList.remove('open'); return; }
+                box.classList.add('open');
+                if (!box.dataset.loaded) {
+                    loadComments(id, box);
+                    box.dataset.loaded = '1';
+                }
+            });
+        });
+
+        // Add comment
+        document.querySelectorAll('.comment-form .cbtn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!window.__isAuthenticated) { window.location.href = '/login/'; return; }
+                var id = btn.getAttribute('data-id');
+                var box = document.getElementById('comments-' + id);
+                var ta = box.querySelector('textarea');
+                var content = ta.value.trim();
+                if (!content) return;
+                fetch('/api/forum/posts/' + id + '/comments/', {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content })
+                }).then(function (r) {
+                    if (r.status === 401) { window.location.href = '/login/'; return; }
+                    ta.value = '';
+                    loadComments(id, box);
+                    var cc = btn.closest('.post-card').querySelector('.cc');
+                    cc.textContent = parseInt(cc.textContent || '0') + 1;
+                    // refresh post list count after a moment
+                });
+            });
+        });
+    }
+
+    function loadComments(id, box) {
+        fetch('/api/forum/posts/' + id + '/comments/', { credentials: 'include' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                // keep the textarea, replace everything before it
+                var ta = box.querySelector('.comment-form');
+                box.innerHTML = '';
+                if (!data.results.length) {
+                    box.innerHTML = '<p style="color:#94a3b8;font-size:14px;margin:0 0 10px;">No replies yet.</p>';
+                } else {
+                    data.results.forEach(function (c) {
+                        var el = document.createElement('div');
+                        el.className = 'comment';
+                        el.innerHTML = '<span class="who">' + escapeHtml(c.author) + '</span>' +
+                            '<span class="when">' + timeAgo(c.created_at) + '</span>' +
+                            '<div class="body">' + escapeHtml(c.content) + '</div>';
+                        box.appendChild(el);
+                    });
+                }
+                box.appendChild(ta);
+            })
+            .catch(function () {
+                box.insertAdjacentHTML('afterbegin', '<p style="color:#f87171;font-size:14px;">Failed to load replies.</p>');
+            });
+    }
+
+    document.getElementById('post-btn').addEventListener('click', function () {
+        if (!window.__isAuthenticated) { window.location.href = '/login/'; return; }
+        var title = document.getElementById('post-title').value.trim();
+        var content = document.getElementById('post-content').value.trim();
+        var cragId = document.getElementById('post-crag').value;
+        if (!title || !content) { alert('Title and content are required.'); return; }
+        fetch('/api/forum/posts/', {
+            method: 'POST', credentials: 'include',
+            headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, content: content, crag: cragId || null })
+        }).then(function (r) {
+            if (r.status === 401) { window.location.href = '/login/'; return; }
+            if (!r.ok) return r.json().then(function (e) { alert(e.error || 'Failed to post.'); });
+            document.getElementById('post-title').value = '';
+            document.getElementById('post-content').value = '';
+            document.getElementById('post-crag').value = '';
+            loadPosts();
+        });
+    });
+
+    loadCragOptions();
+    loadPosts();
+</script>
+{% endblock %}

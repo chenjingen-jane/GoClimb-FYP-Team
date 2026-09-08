@@ -1,0 +1,327 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Override the centered login layout so the search uses the full screen */
+    main {
+        display: block !important;
+        padding: 0 !important;
+    }
+
+    .search-hero {
+        background: linear-gradient(rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.85)),
+                    url('https://images.unsplash.com/photo-1522163182402-834f871fd851?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80') center/cover;
+        padding: 50px 20px 40px;
+        color: white;
+    }
+
+    .search-hero h1 {
+        max-width: 1200px;
+        margin: 0 auto 8px;
+        font-size: 34px;
+        font-weight: 600;
+    }
+    .search-hero p.subtitle {
+        max-width: 1200px;
+        margin: 0 auto 24px;
+        opacity: 0.85;
+    }
+
+    .controls {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .controls input[type="text"] {
+        flex: 1;
+        min-width: 260px;
+        padding: 14px 18px;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        outline: none;
+    }
+
+    .controls select {
+        padding: 14px 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        background: #fff;
+        color: #1e293b;
+        cursor: pointer;
+    }
+
+    .controls button {
+        padding: 14px 26px;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+    .controls button:hover { background: #2563eb; }
+
+    .results-wrap {
+        max-width: 1200px;
+        margin: 36px auto;
+        padding: 0 20px;
+    }
+    .results-count {
+        color: #475569;
+        font-weight: 600;
+        margin-bottom: 18px;
+    }
+
+    .crag-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 25px;
+    }
+
+    .crag-card {
+        background: rgba(255, 255, 255, 0.97);
+        border-radius: 16px;
+        padding: 25px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+        transition: transform 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    .crag-card:hover { transform: translateY(-5px); }
+
+    .crag-card h4 {
+        color: #1e293b;
+        font-size: 22px;
+        margin-bottom: 6px;
+    }
+    .crag-card .rock-type {
+        color: #64748b;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 14px;
+    }
+    .crag-card .desc {
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.5;
+        flex: 1;
+        margin-bottom: 16px;
+    }
+
+    .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .tag {
+        background: #e2e8f0;
+        color: #475569;
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .tag.rock { background: #dbeafe; color: #1d4ed8; }
+
+    .card-actions {
+        display: flex;
+        gap: 10px;
+    }
+    .view-btn {
+        flex: 1;
+        text-align: center;
+        padding: 11px;
+        background: transparent;
+        color: #3b82f6;
+        border: 2px solid #3b82f6;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+    .view-btn:hover { background: #3b82f6; color: white; }
+
+    .fav-btn {
+        padding: 11px 14px;
+        border-radius: 8px;
+        border: 2px solid #e2e8f0;
+        background: transparent;
+        color: #94a3b8;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .fav-btn.active { border-color: #ef4444; color: #ef4444; }
+    .fav-btn:hover { border-color: #ef4444; }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #64748b;
+        font-size: 18px;
+    }
+    .loading { text-align: center; padding: 40px; color: #94a3b8; }
+</style>
+
+<div class="search-hero">
+    <h1>Find Your Next Route</h1>
+    <p class="subtitle">Search crags by name, filter by rock type or difficulty, and plan your climb.</p>
+
+    <div class="controls">
+        <input type="text" id="q" placeholder="Search by crag name...">
+        <select id="rock_type">
+            <option value="">All Rock Types</option>
+            <option value="granite">Granite</option>
+            <option value="sandstone">Sandstone</option>
+            <option value="limestone">Limestone</option>
+            <option value="boulder">Boulder</option>
+            <option value="indoor">Indoor</option>
+        </select>
+        <select id="difficulty">
+            <option value="">Any Difficulty</option>
+            <option value="4A">4A</option>
+            <option value="5A">5A</option>
+            <option value="5B">5B</option>
+            <option value="5C">5C</option>
+            <option value="6A">6A</option>
+            <option value="6B">6B</option>
+            <option value="6C">6C</option>
+            <option value="7A">7A</option>
+            <option value="7B">7B</option>
+            <option value="7C">7C</option>
+            <option value="8A">8A</option>
+            <option value="8B">8B</option>
+        </select>
+        <button id="search-btn"><i class="fas fa-search"></i> Search</button>
+    </div>
+</div>
+
+<div class="results-wrap">
+    <p class="results-count" id="results-count">Loading crags...</p>
+    <div class="crag-grid" id="crag-grid">
+        <div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+    </div>
+</div>
+
+<script>
+    window.__isAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
+    function getCookie(name) {
+        var m = document.cookie.match('(^|; )' + name + '=([^;]*)');
+        return m ? decodeURIComponent(m[2]) : null;
+    }
+
+    var ROCK_LABEL = {
+        granite: 'Granite', sandstone: 'Sandstone', limestone: 'Limestone',
+        boulder: 'Boulder', indoor: 'Indoor'
+    };
+
+    function buildCard(crag) {
+        var card = document.createElement('div');
+        card.className = 'crag-card';
+        card.innerHTML =
+            '<h4>' + escapeHtml(crag.name) + '</h4>' +
+            '<div class="rock-type"><i class="fas fa-mountain"></i> ' +
+                (ROCK_LABEL[crag.rock_type] || crag.rock_type) + '</div>' +
+            '<div class="desc">' + escapeHtml(truncate(crag.description, 110)) + '</div>' +
+            '<div class="tags">' +
+                '<span class="tag rock">' + (ROCK_LABEL[crag.rock_type] || crag.rock_type) + '</span>' +
+                '<span class="tag">' + crag.difficulty_min + '–' + crag.difficulty_max + '</span>' +
+                '<span class="tag"><i class="fas fa-route"></i> ' + crag.route_count + ' routes</span>' +
+            '</div>' +
+            '<div class="card-actions">' +
+                '<a class="view-btn" href="/crag/' + crag.slug + '/">View Details</a>' +
+                '<button class="fav-btn ' + (crag.is_favorite ? 'active' : '') + '" ' +
+                        'data-crag="' + crag.id + '">' +
+                    '<i class="fas fa-heart"></i></button>' +
+            '</div>';
+        return card;
+    }
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+        });
+    }
+    function truncate(s, n) {
+        s = s || '';
+        return s.length > n ? s.slice(0, n) + '…' : s;
+    }
+
+    function loadCrags() {
+        var q = document.getElementById('q').value.trim();
+        var rock = document.getElementById('rock_type').value;
+        var diff = document.getElementById('difficulty').value;
+        var params = new URLSearchParams();
+        if (q) params.set('q', q);
+        if (rock) params.set('rock_type', rock);
+        if (diff) params.set('difficulty', diff);
+
+        document.getElementById('crag-grid').innerHTML =
+            '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+        document.getElementById('results-count').textContent = 'Loading...';
+
+        fetch('/api/crags/?' + params.toString(), { credentials: 'include' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var grid = document.getElementById('crag-grid');
+                grid.innerHTML = '';
+                document.getElementById('results-count').textContent =
+                    data.count + ' crag' + (data.count === 1 ? '' : 's') + ' found';
+                if (!data.results.length) {
+                    grid.innerHTML = '<div class="empty-state">' +
+                        '<i class="fas fa-mountain" style="font-size:40px;opacity:.3"></i><br><br>' +
+                        'No crags match your filters. Try clearing them.</div>';
+                    return;
+                }
+                data.results.forEach(function (c) {
+                    grid.appendChild(buildCard(c));
+                });
+                bindFavButtons();
+            })
+            .catch(function () {
+                document.getElementById('crag-grid').innerHTML =
+                    '<div class="empty-state">Failed to load crags. Is the server running?</div>';
+            });
+    }
+
+    function bindFavButtons() {
+        document.querySelectorAll('.fav-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!window.__isAuthenticated) {
+                    window.location.href = '/login/';
+                    return;
+                }
+                var cragId = btn.getAttribute('data-crag');
+                var wasActive = btn.classList.contains('active');
+                var method = wasActive ? 'DELETE' : 'POST';
+                fetch('/api/favorites/' + (wasActive ? cragId + '/' : ''),
+                    {
+                        method: method,
+                        credentials: 'include',
+                        headers: { 'X-CSRFToken': getCookie('csrftoken'),
+                                   'Content-Type': 'application/json' },
+                        body: wasActive ? null : JSON.stringify({ crag_id: cragId })
+                    })
+                    .then(function (r) {
+                        if (r.status === 401) { window.location.href = '/login/'; return; }
+                        btn.classList.toggle('active', !wasActive);
+                    });
+            });
+        });
+    }
+
+    document.getElementById('search-btn').addEventListener('click', loadCrags);
+    document.getElementById('q').addEventListener('keyup', function (e) {
+        if (e.key === 'Enter') loadCrags();
+    });
+    document.getElementById('rock_type').addEventListener('change', loadCrags);
+    document.getElementById('difficulty').addEventListener('change', loadCrags);
+
+    loadCrags();
+</script>
+{% endblock %}

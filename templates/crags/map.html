@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    main { display: block !important; padding: 0 !important; }
+    .map-header {
+        background: rgba(15, 23, 42, 0.9);
+        color: white;
+        padding: 18px 20px;
+    }
+    .map-header h2 { font-size: 22px; font-weight: 600; }
+    .map-header p { opacity: 0.8; font-size: 14px; margin-top: 4px; }
+    #map { width: 100%; height: calc(100vh - 64px - 70px); min-height: 420px; }
+    .leaflet-popup-content { font-family: 'Poppins', sans-serif; }
+    .popup-card { min-width: 180px; }
+    .popup-card h4 { margin: 0 0 4px; color: #1e293b; font-size: 16px; }
+    .popup-card .rock { color: #64748b; font-size: 13px; margin-bottom: 8px; }
+    .popup-card a {
+        display: block; text-align: center; padding: 8px;
+        background: #3b82f6; color: white; border-radius: 6px;
+        text-decoration: none; font-weight: 600; font-size: 14px;
+    }
+</style>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div class="map-header">
+    <h2><i class="fas fa-map-marked-alt"></i> Climbing Map</h2>
+    <p>Tap a pin to see the crag and jump to its page.</p>
+</div>
+
+<div id="map"></div>
+
+<script>
+    var map = L.map('map').setView([1.3521, 103.8198], 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    var ROCK_COLOR = {
+        granite: '#6b7280', sandstone: '#d97706', limestone: '#0891b2',
+        boulder: '#65a30d', indoor: '#db2777'
+    };
+
+    function loadCrags() {
+        fetch('/api/crags/', { credentials: 'include' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var bounds = [];
+                data.results.forEach(function (c) {
+                    if (c.lat === null || c.lng === null) return;
+                    var lat = parseFloat(c.lat), lng = parseFloat(c.lng);
+                    var marker = L.circleMarker([lat, lng], {
+                        radius: 9,
+                        color: ROCK_COLOR[c.rock_type] || '#3b82f6',
+                        fillColor: ROCK_COLOR[c.rock_type] || '#3b82f6',
+                        fillOpacity: 0.85,
+                        weight: 2
+                    }).addTo(map);
+                    var popup =
+                        '<div class="popup-card">' +
+                        '<h4>' + escapeHtml(c.name) + '</h4>' +
+                        '<div class="rock">' + (c.rock_type || '') +
+                            ' • ' + c.difficulty_min + '–' + c.difficulty_max + '</div>' +
+                        '<a href="/crag/' + c.slug + '/">View Details</a>' +
+                        '</div>';
+                    marker.bindPopup(popup);
+                    bounds.push([lat, lng]);
+                });
+                if (bounds.length) {
+                    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+                }
+            })
+            .catch(function () {
+                var hd = document.querySelector('.map-header');
+                if (hd) hd.insertAdjacentHTML('beforeend',
+                    '<p style="color:#f87171;">Failed to load crags. Is the server running?</p>');
+            });
+    }
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+        });
+    }
+
+    loadCrags();
+</script>
+{% endblock %}
