@@ -167,7 +167,7 @@
         const result = await res.json();
         if (res.ok && result.success) {
             alert('Registration successful, you are now logged in automatically');
-            window.location.href = '/home/';
+            window.location.href = '/search/';
         } else {
             alert(result.error || 'Registration failed, please try again');
         }

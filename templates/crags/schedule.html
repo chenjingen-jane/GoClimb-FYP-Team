@@ -107,15 +107,23 @@
 </style>
 
 <div class="top-nav-bar">
-    <a href="/crag/{{ crag_id }}/" class="back-link">
+    <a href="/crag/{{ crag.slug }}/" class="back-link">
         <i class="fas fa-arrow-left"></i> Back to Crag Details
     </a>
 </div>
 
 <div class="schedule-container">
     <div class="schedule-card">
+        {% if confirmed_climb %}
+        <div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:16px;margin-bottom:24px;color:#065f46;line-height:1.6;">
+            <strong><i class="fas fa-circle-check"></i> Your climb is confirmed.</strong><br>
+            {{ confirmed_climb.crag.name }} - {{ confirmed_climb.climb_at|date:"D, d M Y, H:i" }}<br>
+            <a href="/profile/" style="color:#047857;font-weight:600;">View it in your profile calendar</a>
+        </div>
+        {% endif %}
+        {% if error %}<p style="color:#b91c1c;margin-bottom:18px;">{{ error }}</p>{% endif %}
         <h2>Plan Your Climb</h2>
-        <p class="subtitle">Select a date and time to lock in your session at <strong>{{ crag_name }}</strong>.</p>
+        <p class="subtitle">Select a date and time to lock in your session at <strong>{{ crag.name }}</strong>.</p>
 
         <form method="POST" action="">
             {% csrf_token %}
@@ -133,6 +141,11 @@
             <div class="form-group">
                 <label><i class="fas fa-user-friends"></i> Who is joining you? (Optional)</label>
                 <textarea name="friends" rows="3" placeholder="Tag your belay partners..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label><i class="fas fa-note-sticky"></i> Notes (Optional)</label>
+                <textarea name="notes" rows="2" placeholder="Goals, meeting point, equipment..."></textarea>
             </div>
 
             <button type="submit" class="submit-btn">

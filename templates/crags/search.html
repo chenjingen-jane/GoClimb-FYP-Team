@@ -95,6 +95,7 @@
         display: flex;
         flex-direction: column;
     }
+    .crag-card .card-image { width:calc(100% + 50px); height:150px; margin:-25px -25px 18px; object-fit:cover; border-radius:16px 16px 0 0; background:#e2e8f0; }
     .crag-card:hover { transform: translateY(-5px); }
 
     .crag-card h4 {
@@ -224,6 +225,7 @@
         var card = document.createElement('div');
         card.className = 'crag-card';
         card.innerHTML =
+            (crag.image ? '<img class="card-image" src="' + escapeHtml(crag.image) + '" alt="' + escapeHtml(crag.name) + ' climbing area" loading="lazy">' : '') +
             '<h4>' + escapeHtml(crag.name) + '</h4>' +
             '<div class="rock-type"><i class="fas fa-mountain"></i> ' +
                 (ROCK_LABEL[crag.rock_type] || crag.rock_type) + '</div>' +

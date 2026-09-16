@@ -1,52 +1,10 @@
 {% extends 'base.html' %}
-
 {% block content %}
 <style>
-    .profile-card {
-        background: rgba(255, 255, 255, 0.95);
-        padding: 40px;
-        border-radius: 16px;
-        text-align: center;
-        width: 100%;
-        max-width: 400px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-
-    .profile-card i.fa-user-circle {
-        font-size: 80px;
-        color: #3b82f6;
-        margin-bottom: 15px;
-    }
-
-    .logout-btn {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        padding: 15px;
-        background: #ef4444; /* Standard alert red */
-        color: white;
-        text-decoration: none;
-        border-radius: 8px;
-        font-weight: bold;
-        margin-top: 30px;
-        transition: background 0.3s;
-    }
-
-    .logout-btn:hover {
-        background: #dc2626; /* Darker red on hover */
-    }
+body{background:#f1f5f9!important}main{display:block!important;padding:36px 20px!important}.profile-shell{max-width:1100px;margin:auto;display:grid;grid-template-columns:1fr 1.25fr;gap:24px}.profile-card{background:#fff;border-radius:16px;padding:28px;box-shadow:0 8px 24px rgba(15,23,42,.09)}.avatar{width:72px;height:72px;border-radius:50%;background:#dbeafe;color:#2563eb;display:grid;place-items:center;font-size:34px;margin-bottom:12px}h2{color:#172554;margin-bottom:8px}h3{color:#1e293b;margin-bottom:16px}.muted{color:#64748b;font-size:14px}.field{margin-top:14px}label{display:block;font-weight:600;color:#334155;font-size:13px;margin-bottom:6px}input,textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font:inherit}textarea{resize:vertical}.save{margin-top:20px;border:0;border-radius:8px;background:#2563eb;color:#fff;padding:11px 16px;font-weight:600;cursor:pointer}.climb{border-left:4px solid #22c55e;background:#f8fafc;padding:14px;border-radius:8px;margin-bottom:10px}.climb.past{border-left-color:#94a3b8}.climb strong{color:#1e293b;display:block}.empty{color:#64748b;background:#f8fafc;border-radius:8px;padding:18px}.history{margin-top:24px}.tag{display:inline-block;color:#047857;background:#d1fae5;padding:3px 8px;border-radius:999px;font-size:12px;margin-top:6px}@media(max-width:760px){.profile-shell{grid-template-columns:1fr}}
 </style>
-
-<div class="profile-card">
-    <i class="fas fa-user-circle"></i>
-    <h2>Climber Profile</h2>
-    <p style="color: #64748b;">Ready for the next send!</p>
-    
-    <!-- Here is your missing Logout Button! -->
-    <a href="/login/" class="logout-btn">
-        <i class="fas fa-sign-out-alt"></i> Log Out
-    </a>
+<div class="profile-shell">
+ <section class="profile-card"><div class="avatar"><i class="fas fa-user"></i></div><h2>{{ profile.display_name|default:request.user.username }}</h2><p class="muted">{{ request.user.email|default:"Add your email in account settings" }}</p><form method="post">{% csrf_token %}<div class="field"><label for="display_name">Display name</label><input id="display_name" name="display_name" value="{{ profile.display_name }}" placeholder="How should climbers know you?"></div><div class="field"><label for="birthday">Birthday</label><input id="birthday" type="date" name="birthday" value="{{ profile.birthday|date:'Y-m-d' }}"></div><div class="field"><label for="home_gym">Home crag / gym</label><input id="home_gym" name="home_gym" value="{{ profile.home_gym }}" placeholder="e.g. Boulder+ Chevrons"></div><div class="field"><label for="climbing_since">Climbing since</label><input id="climbing_since" type="number" min="1900" max="2026" name="climbing_since" value="{{ profile.climbing_since|default_if_none:'' }}" placeholder="2024"></div><div class="field"><label for="bio">Climbing history / bio</label><textarea id="bio" name="bio" rows="4" placeholder="Favourite style, milestones, goals...">{{ profile.bio }}</textarea></div><button class="save" type="submit"><i class="fas fa-floppy-disk"></i> Save profile</button></form></section>
+ <section class="profile-card"><h3><i class="far fa-calendar-check" style="color:#2563eb"></i> Your climbing calendar</h3><p class="muted" style="margin-bottom:16px;">Confirmed sessions are saved here when you schedule a climb.</p>{% for climb in upcoming_climbs %}<div class="climb"><strong>{{ climb.crag.name }}</strong><span class="muted"><i class="far fa-calendar"></i> {{ climb.climb_at|date:"D, d M Y" }} at {{ climb.climb_at|date:"H:i" }}</span>{% if climb.friends %}<br><span class="muted"><i class="fas fa-user-friends"></i> {{ climb.friends }}</span>{% endif %}{% if climb.notes %}<br><span class="muted">{{ climb.notes }}</span>{% endif %}<div class="tag">Upcoming</div></div>{% empty %}<div class="empty">No upcoming climbs yet. Pick a crag and use <strong>Schedule a Climb Here</strong> to make your first plan.</div>{% endfor %}<div class="history"><h3 style="font-size:18px">Climbing history</h3>{% for climb in past_climbs %}<div class="climb past"><strong>{{ climb.crag.name }}</strong><span class="muted">{{ climb.climb_at|date:"d M Y, H:i" }}</span></div>{% empty %}<p class="muted">Your completed sessions will appear here.</p>{% endfor %}</div></section>
 </div>
 {% endblock %}

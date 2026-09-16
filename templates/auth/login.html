@@ -142,7 +142,7 @@
         });
         const result = await res.json();
         if (res.ok && result.success) {
-            window.location.href = '/home/';
+            window.location.href = '/search/';
         } else {
             alert(result.error || 'Login failed, please try again');
         }
