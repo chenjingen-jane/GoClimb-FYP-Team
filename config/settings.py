@@ -27,6 +27,16 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 
+# Keep local logins on this project's login page (rather than Django's
+# default /accounts/login/ URL).  The trusted origins and Lax cookies also
+# make the admin login work consistently when the presentation is opened via
+# either localhost or 127.0.0.1.
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/search/"
+CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
+
 
 # Application definition
 

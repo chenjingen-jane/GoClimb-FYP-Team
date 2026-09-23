@@ -142,7 +142,10 @@
         });
         const result = await res.json();
         if (res.ok && result.success) {
-            window.location.href = '/search/';
+            // A protected page (for example scheduling) sends guests here
+            // with ?next=.  Only allow local paths to prevent open redirects.
+            const next = new URLSearchParams(window.location.search).get('next');
+            window.location.href = next && next.startsWith('/') ? next : '/search/';
         } else {
             alert(result.error || 'Login failed, please try again');
         }

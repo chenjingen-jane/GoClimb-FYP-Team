@@ -233,7 +233,9 @@
                     <span>{{ route.get_route_type_display }} • {{ route.length_m }} m{% if route.description %} • {{ route.description }}{% endif %}</span>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
+                    {% if request.user.is_authenticated %}
                     <button class="ar-btn" onclick="openAR('{{ route.name|escapejs }}')"><i class="fas fa-vr-cardboard"></i> AR</button>
+                    {% endif %}
                     <span class="route-grade">{{ route.grade }}</span>
                 </div>
             </div>
@@ -264,9 +266,11 @@
             <a class="action-btn btn-blue" id="transport-btn" href="#" target="_blank" rel="noopener">
                 <i class="fas fa-directions"></i> Get Directions (Google Maps)
             </a>
+            {% if request.user.is_authenticated %}
             <a class="action-btn btn-green" href="/crag/{{ crag.id }}/schedule/">
                 <i class="far fa-calendar-plus"></i> Schedule a Climb Here
             </a>
+            {% endif %}
             <a class="action-btn btn-purple" href="/forum/?crag={{ crag.slug }}">
                 <i class="fas fa-comments"></i> Discuss this Crag
             </a>
@@ -360,8 +364,22 @@
         'pulau-ubin-granite': [[43,184,'F'],[51,152,'H'],[59,119,'F'],[49,87,'F'],[39,55,'H'],[51,22,'F']],
         'the-cliff-snow-city': [[54,184,'F'],[46,151,'H'],[53,119,'F'],[46,87,'H'],[54,54,'F'],[49,22,'H']]
     };
-    function drawGuideForCrag() {
-        var guide = ROUTE_GUIDES[CRAG.slug] || ROUTE_GUIDES['climb-central'];
+    function drawGuideForCrag(routeName) {
+        var baseGuide = ROUTE_GUIDES[CRAG.slug] || ROUTE_GUIDES['climb-central'];
+        // Retain the crag's profile, then make every named route its own
+        // variation. Every H/F marker is generated from the same points as the
+        // line, so markers can never appear off the displayed route.
+        var routeKey = String(routeName || 'route');
+        var routeSeed = routeKey.split('').reduce(function (sum, character) {
+            return sum + character.charCodeAt(0);
+        }, 0);
+        var guide = baseGuide.map(function (point, index) {
+            var offset = ((routeSeed + index * 11) % 13) - 6;
+            var holdType = point[2];
+            // Different routes also have a slightly different hand/foot mix.
+            if ((routeSeed + index * 5) % 7 === 0) holdType = holdType === 'H' ? 'F' : 'H';
+            return [Math.max(20, Math.min(80, point[0] + offset)), point[1], holdType];
+        });
         function hand(p) { return '<circle class="hold-hand" cx="'+p[0]+'" cy="'+p[1]+'" r="9"/><text class="hold-text" x="'+p[0]+'" y="'+p[1]+'">H</text>'; }
         function foot(p) { return '<rect class="hold-foot" x="'+(p[0]-8)+'" y="'+(p[1]-8)+'" width="16" height="16" rx="2"/><text class="hold-text" x="'+p[0]+'" y="'+p[1]+'">F</text>'; }
         var path = 'M' + guide.map(function (p) { return p[0] + ' ' + p[1]; }).join(' L');
@@ -489,6 +507,10 @@
     }
 
     function openAR(routeName) {
+        if (!window.__isAuthenticated) {
+            window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname);
+            return;
+        }
         document.getElementById('ar-route-name').textContent = routeName || '—';
         var route = (CRAG.routes || []).filter(function (r) { return r.name === routeName; })[0] || {};
         var minutes = Math.max(10, Math.round((route.length_m || CRAG.length_m || 10) * (route.route_type === 'boulder' ? 3 : 2)));
@@ -499,7 +521,7 @@
             'linear-gradient(rgba(0,0,0,.12),rgba(0,0,0,.25)),url("' + encodeURI(CRAG.image || '') + '")';
         document.getElementById('ar-stage').classList.remove('route-active');
         document.getElementById('start-route-btn').textContent = 'Start Route';
-        drawGuideForCrag();
+        drawGuideForCrag(routeName);
         document.getElementById('ar-modal').classList.add('open');
         // The guide itself is the AR surface: it opens instantly without requiring
         // a marker, camera permission or an external 3D scene.
