@@ -6,6 +6,7 @@ from . import forum_views
 from .views import (
     api_login, api_register, api_logout,
     api_password_reset, api_password_reset_confirm,
+    api_experience_level,
 )
 
 urlpatterns = [
@@ -36,6 +37,14 @@ urlpatterns = [
     path('api/auth/logout/', api_logout, name='api_logout'),
     path('api/auth/password-reset/', api_password_reset, name='api_password_reset'),
     path('api/auth/password-reset-confirm/', api_password_reset_confirm, name='api_password_reset_confirm'),
+    path('api/profile/experience/', api_experience_level, name='api_experience_level'),
+
+    # Custom staff-only administration area. Django's built-in /admin/ remains
+    # available for maintenance, but this is the presentation dashboard.
+    path('manage/', views.admin_dashboard, name='admin_dashboard'),
+    path('manage/<str:entity>/new/', views.admin_edit, name='admin_create'),
+    path('manage/<str:entity>/<int:pk>/edit/', views.admin_edit, name='admin_edit'),
+    path('manage/<str:entity>/<int:pk>/delete/', views.admin_delete, name='admin_delete'),
 
     # ---- Crag / Favorite API ----
     path('api/crags/', crag_views.crag_list_api, name='api_crag_list'),

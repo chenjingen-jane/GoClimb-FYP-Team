@@ -9,6 +9,9 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden
+from django.forms import ModelForm, CharField, PasswordInput, DateTimeInput
+from django.shortcuts import get_object_or_404
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -16,7 +19,18 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from .serializers import UserSerializer
-from .models import ClimberProfile, ClimbSchedule, Crag
+from .models import ClimberProfile, ClimbSchedule, Crag, EXPERIENCE_LEVEL_CHOICES
+from .models import Route, Favorite, ForumPost, ForumComment, ForumLike
+
+
+def staff_required(view):
+    """Redirect anonymous visitors to sign in, but explicitly deny members."""
+    @login_required
+    def wrapped(request, *args, **kwargs):
+        if not request.user.is_staff:
+            return HttpResponseForbidden('Administrator access is required.')
+        return view(request, *args, **kwargs)
+    return wrapped
 
 
 # ============================================================
@@ -61,6 +75,8 @@ def profile_view(request):
         since = request.POST.get('climbing_since')
         profile.birthday = birthday or None
         profile.climbing_since = int(since) if since and since.isdigit() else None
+        experience_level = request.POST.get('experience_level', '')
+        profile.experience_level = experience_level if experience_level in dict(EXPERIENCE_LEVEL_CHOICES) else ''
         profile.save()
         return redirect('profile')
     return render(request, 'auth/profile.html', {
@@ -114,7 +130,9 @@ def api_login(request):
     if user is None:
         return Response({'error': 'Incorrect username or password'}, status=status.HTTP_401_UNAUTHORIZED)
     login(request, user)
-    return Response({'success': True, 'user': UserSerializer(user).data})
+    profile, _ = ClimberProfile.objects.get_or_create(user=user)
+    return Response({'success': True, 'user': UserSerializer(user).data,
+                     'needs_experience': not bool(profile.experience_level)})
 
 
 @api_view(['POST'])
@@ -135,8 +153,23 @@ def api_register(request):
         return Response({'error': 'This email has already been registered'}, status=status.HTTP_400_BAD_REQUEST)
 
     user = User.objects.create_user(username=username, email=email, password=password)
+    ClimberProfile.objects.create(user=user)
     login(request, user)
-    return Response({'success': True, 'user': UserSerializer(user).data}, status=status.HTTP_201_CREATED)
+    return Response({'success': True, 'user': UserSerializer(user).data,
+                     'needs_experience': True}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_experience_level(request):
+    """Persist the required first-login climbing experience choice."""
+    value = (request.data.get('experience_level') or '').strip().lower()
+    if value not in dict(EXPERIENCE_LEVEL_CHOICES):
+        return Response({'error': 'Choose Beginner, Experienced, or Master.'}, status=status.HTTP_400_BAD_REQUEST)
+    profile, _ = ClimberProfile.objects.get_or_create(user=request.user)
+    profile.experience_level = value
+    profile.save(update_fields=['experience_level'])
+    return Response({'success': True, 'experience_level': profile.get_experience_level_display()})
 
 
 @api_view(['POST'])
@@ -176,3 +209,142 @@ def api_password_reset_confirm(request):
     user.set_password(new_password)
     user.save()
     return Response({'success': True, 'message': 'Your password has been reset, please log in again'})
+
+
+# ============================================================
+# Custom staff administration dashboard
+# ============================================================
+
+class UserManagementForm(ModelForm):
+    password = CharField(required=False, widget=PasswordInput(render_value=False),
+                         help_text='Leave blank to keep the current password.')
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'first_name', 'last_name', 'is_active', 'is_staff')
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        elif not user.pk:
+            user.set_unusable_password()
+        if commit:
+            user.save()
+        return user
+
+
+class ProfileManagementForm(ModelForm):
+    class Meta:
+        model = ClimberProfile
+        fields = ('user', 'display_name', 'birthday', 'bio', 'home_gym', 'climbing_since', 'experience_level')
+
+
+class CragManagementForm(ModelForm):
+    class Meta:
+        model = Crag
+        fields = ('name', 'slug', 'description', 'lat', 'lng', 'rock_type', 'difficulty_min',
+                  'difficulty_max', 'length_m', 'hazards', 'image')
+
+
+class RouteManagementForm(ModelForm):
+    class Meta:
+        model = Route
+        fields = ('crag', 'name', 'grade', 'route_type', 'length_m', 'description')
+
+
+class FavoriteManagementForm(ModelForm):
+    class Meta:
+        model = Favorite
+        fields = ('user', 'crag')
+
+
+class ScheduleManagementForm(ModelForm):
+    class Meta:
+        model = ClimbSchedule
+        fields = ('user', 'crag', 'climb_at', 'friends', 'notes')
+        widgets = {'climb_at': DateTimeInput(attrs={'type': 'datetime-local'})}
+
+
+class PostManagementForm(ModelForm):
+    class Meta:
+        model = ForumPost
+        fields = ('author', 'title', 'content', 'crag')
+
+
+class CommentManagementForm(ModelForm):
+    class Meta:
+        model = ForumComment
+        fields = ('post', 'author', 'content')
+
+
+class LikeManagementForm(ModelForm):
+    class Meta:
+        model = ForumLike
+        fields = ('user', 'post')
+
+
+ADMIN_ENTITIES = {
+    'users': ('Users', User, UserManagementForm, ('username', 'email', 'is_active', 'is_staff')),
+    'profiles': ('Climber Profiles', ClimberProfile, ProfileManagementForm, ('user', 'display_name', 'experience_level', 'home_gym')),
+    'crags': ('Crags', Crag, CragManagementForm, ('name', 'rock_type', 'difficulty_min', 'difficulty_max')),
+    'routes': ('Routes', Route, RouteManagementForm, ('name', 'crag', 'grade', 'route_type')),
+    'favorites': ('Favorites', Favorite, FavoriteManagementForm, ('user', 'crag', 'created_at')),
+    'schedules': ('Climbing Schedules', ClimbSchedule, ScheduleManagementForm, ('user', 'crag', 'climb_at', 'friends')),
+    'posts': ('Community Posts', ForumPost, PostManagementForm, ('title', 'author', 'crag', 'created_at')),
+    'comments': ('Community Comments', ForumComment, CommentManagementForm, ('post', 'author', 'created_at')),
+    'likes': ('Community Likes', ForumLike, LikeManagementForm, ('user', 'post', 'created_at')),
+}
+
+
+def _admin_entity(entity):
+    if entity not in ADMIN_ENTITIES:
+        from django.http import Http404
+        raise Http404('Unknown management section')
+    return ADMIN_ENTITIES[entity]
+
+
+@staff_required
+def admin_dashboard(request):
+    entity = request.GET.get('section', 'users')
+    title, model, form_class, columns = _admin_entity(entity)
+    query = request.GET.get('q', '').strip()
+    objects = model.objects.all()
+    if query:
+        if entity == 'users':
+            from django.db.models import Q
+            objects = objects.filter(Q(username__icontains=query) | Q(email__icontains=query))
+        elif entity in ('crags', 'routes', 'posts'):
+            objects = objects.filter(name__icontains=query) if entity != 'posts' else objects.filter(title__icontains=query)
+    object_list = list(objects[:100])
+    rows = [(obj, [getattr(obj, column, '') for column in columns]) for obj in object_list]
+    return render(request, 'admin_dashboard.html', {
+        'entities': ADMIN_ENTITIES, 'entity': entity, 'section_title': title,
+        'columns': columns, 'rows': rows, 'query': query,
+        'counts': {key: spec[1].objects.count() for key, spec in ADMIN_ENTITIES.items()},
+    })
+
+
+@staff_required
+def admin_edit(request, entity, pk=None):
+    title, model, form_class, columns = _admin_entity(entity)
+    instance = get_object_or_404(model, pk=pk) if pk else None
+    form = form_class(request.POST or None, instance=instance)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        return redirect(f'/manage/?section={entity}')
+    return render(request, 'admin_edit.html', {
+        'form': form, 'entity': entity, 'section_title': title,
+        'object': instance, 'is_new': instance is None,
+    })
+
+
+@staff_required
+def admin_delete(request, entity, pk):
+    title, model, form_class, columns = _admin_entity(entity)
+    instance = get_object_or_404(model, pk=pk)
+    if request.method == 'POST':
+        instance.delete()
+        return redirect(f'/manage/?section={entity}')
+    return render(request, 'admin_delete.html', {'entity': entity, 'section_title': title, 'object': instance})

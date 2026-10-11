@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: goclimb
+    runtime: python
+    plan: free
+    buildCommand: "bash build.sh"
+    startCommand: "python manage.py migrate --noinput && gunicorn config.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false

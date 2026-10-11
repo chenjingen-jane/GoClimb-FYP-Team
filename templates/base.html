@@ -85,6 +85,7 @@
             {% if request.user.is_authenticated %}
                 <a href="/favorites/" {% if '/favorites' in request.path %}class="active"{% endif %}><i class="fas fa-heart"></i> Favorites</a>
                 <a href="/dashboard/" {% if '/dashboard' in request.path %}class="active"{% endif %}><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                {% if request.user.is_staff %}<a href="/manage/" {% if '/manage' in request.path %}class="active"{% endif %}><i class="fas fa-shield-alt"></i> Manage</a>{% endif %}
                 <a href="/profile/" class="nav-user"><i class="fas fa-user-circle"></i> {{ request.user.username }}</a>
                 <a href="#" id="nav-logout" class="nav-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
             {% else %}
@@ -137,6 +138,37 @@
         {% block content %}
         {% endblock %}
     </main>
+
+    {% if request.user.is_authenticated and not request.user.climber_profile.experience_level %}
+    <div id="experience-modal" class="experience-modal" role="dialog" aria-modal="true" aria-labelledby="experience-title">
+        <div class="experience-card">
+            <i class="fas fa-mountain experience-icon"></i>
+            <h2 id="experience-title">Welcome to Go Climb</h2>
+            <p>Before you explore, choose your climbing experience level.</p>
+            <div class="experience-options">
+                <button data-level="beginner"><strong>Beginner</strong><span>Learning the basics</span></button>
+                <button data-level="experienced"><strong>Experienced</strong><span>Confident on regular routes</span></button>
+                <button data-level="master"><strong>Master</strong><span>Advanced climber</span></button>
+            </div>
+            <p class="experience-error" id="experience-error" hidden></p>
+        </div>
+    </div>
+    <style>
+        .experience-modal{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.7);backdrop-filter:blur(4px)}
+        .experience-card{max-width:480px;width:100%;padding:32px;border-radius:18px;background:#fff;text-align:center;box-shadow:0 20px 45px rgba(0,0,0,.3)}
+        .experience-icon{font-size:30px;color:#2563eb}.experience-card h2{margin:10px 0;color:#172554}.experience-card p{color:#64748b}
+        .experience-options{display:grid;gap:10px;margin:24px 0}.experience-options button{border:1px solid #bfdbfe;border-radius:10px;padding:13px;background:#f8fbff;color:#1e3a8a;cursor:pointer;text-align:left}.experience-options button:hover{background:#dbeafe;border-color:#2563eb}.experience-options strong,.experience-options span{display:block}.experience-options span{font-size:13px;color:#64748b;margin-top:2px}.experience-error{color:#b91c1c}
+    </style>
+    <script>
+      document.querySelectorAll('[data-level]').forEach(function(button){button.addEventListener('click',function(){
+        var error=document.getElementById('experience-error');
+        fetch('/api/profile/experience/',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},body:JSON.stringify({experience_level:button.dataset.level})})
+        .then(function(r){return r.json().then(function(data){return {ok:r.ok,data:data};});})
+        .then(function(result){if(result.ok){document.getElementById('experience-modal').remove();}else{error.hidden=false;error.textContent=result.data.error||'Could not save your experience level.';}})
+        .catch(function(){error.hidden=false;error.textContent='Could not save your experience level. Please try again.';});
+      });});
+    </script>
+    {% endif %}
 
 </body>
 </html>

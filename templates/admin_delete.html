@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>body{background:#f1f5f9!important}.confirm{margin:auto;max-width:520px;background:#fff;border-radius:16px;padding:32px;box-shadow:0 5px 18px rgba(15,23,42,.08)}h1{color:#991b1b}.button{border:0;border-radius:8px;padding:10px 16px;color:#fff;background:#dc2626;font-weight:600;cursor:pointer;text-decoration:none}.cancel{background:#64748b}</style><section class="confirm"><h1>Delete {{ section_title }}</h1><p>Delete <strong>{{ object }}</strong>? This action cannot be undone.</p><form method="post" style="margin-top:20px">{% csrf_token %}<button class="button" type="submit">Yes, delete</button> <a class="button cancel" href="/manage/?section={{ entity }}">Cancel</a></form></section>
+{% endblock %}

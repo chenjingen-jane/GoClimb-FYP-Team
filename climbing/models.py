@@ -31,6 +31,12 @@ ROUTE_TYPE_CHOICES = [
     ('toprope', 'Top Rope'),
 ]
 
+EXPERIENCE_LEVEL_CHOICES = [
+    ('beginner', 'Beginner'),
+    ('experienced', 'Experienced'),
+    ('master', 'Master'),
+]
+
 
 # ---------------------------------------------------------------------------
 # Models
@@ -128,6 +134,10 @@ class ClimberProfile(models.Model):
     bio = models.TextField(blank=True)
     home_gym = models.CharField(max_length=120, blank=True)
     climbing_since = models.PositiveSmallIntegerField(null=True, blank=True)
+    experience_level = models.CharField(
+        max_length=12, choices=EXPERIENCE_LEVEL_CHOICES, blank=True,
+        help_text='Selected after the climber first signs in.',
+    )
 
     def __str__(self):
         return self.display_name or self.user.username

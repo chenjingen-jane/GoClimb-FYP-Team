@@ -7,7 +7,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import ClimbSchedule, Crag, Route
+from .models import ClimbSchedule, ClimberProfile, Crag, Route
 
 
 class ClimberJourneyTests(TestCase):
@@ -70,3 +70,32 @@ class ClimberJourneyTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], '/admin/')
+
+    def test_experience_is_requested_then_saved_once(self):
+        profile = ClimberProfile.objects.create(user=self.user)
+        response = self.client.post(reverse('api_experience_level'),
+                                    {'experience_level': 'experienced'}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        profile.refresh_from_db()
+        self.assertEqual(profile.experience_level, 'experienced')
+        self.assertContains(self.client.get(reverse('profile')), 'Experienced')
+
+    def test_staff_dashboard_rejects_regular_users_and_supports_crag_create(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('admin_dashboard')).status_code, 403)
+        staff = User.objects.create_user('staff', password='safe-password-3', is_staff=True)
+        self.client.force_login(staff)
+        dashboard = self.client.get(reverse('admin_dashboard'))
+        self.assertEqual(dashboard.status_code, 200)
+        create = self.client.post(reverse('admin_create', args=['crags']), {
+            'name': 'Admin Test Crag', 'slug': 'admin-test-crag', 'rock_type': 'granite',
+            'difficulty_min': '4A', 'difficulty_max': '6B', 'length_m': 20,
+            'lat': '1.3521', 'lng': '103.8198',
+        })
+        self.assertEqual(create.status_code, 302)
+        self.assertTrue(Crag.objects.filter(slug='admin-test-crag').exists())
+
+    def test_ar_assets_are_served(self):
+        response = self.client.get('/ar-assets/HIRO.jpg')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'image/jpeg')
