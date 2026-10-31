@@ -307,40 +307,15 @@
                 <button class="details" onclick="showRouteDetails()">Details</button>
             </div>
         </div>
-        <div class="ar-hint" id="ar-hint">
-            <i class="fas fa-video"></i> Camera blocked, or no Hiro marker in view. Open this page via <b>http://127.0.0.1:8000</b>, allow camera, and point it at the <a href="#" onclick="showMarker();return false;" style="color:#fca5a5;text-decoration:underline;">Hiro marker</a>. The 3D route locks onto the marker and stays glued to it.
-        </div>
         <div class="ar-controls">
-            <button id="cam-btn" onclick="toggleCamera()"><i class="fas fa-camera"></i> Start AR Camera</button>
-            <button class="ghost" id="wall-btn" onclick="toggleWall()"><i class="fas fa-cube"></i> Hide Wall</button>
-            <button class="ghost" onclick="toggleThreeD()"><i class="fas fa-sync"></i> Spin</button>
-            <button class="ghost" onclick="captureAR()"><i class="fas fa-camera-retro"></i> Capture</button>
-            <button class="ghost" onclick="showMarker()"><i class="fas fa-qrcode"></i> Show Marker</button>
             <button class="ghost" onclick="closeAR()">Close</button>
         </div>
     </div>
 </div>
 
-<!-- Hiro Marker preview / print modal -->
-<div class="marker-modal" id="marker-modal">
-    <div class="marker-box">
-        <button class="ar-close" onclick="closeMarker()">&times;</button>
-        <h3><i class="fas fa-qrcode"></i> Hiro Marker</h3>
-        <p class="sub">Point your camera at this marker (show it on another screen, or print it). The 3D route will lock onto the marker and stay anchored to it as you move around.</p>
-        <img src="/ar-assets/HIRO.jpg" alt="Hiro marker" class="marker-img" />
-        <div class="ar-controls" style="margin-top:16px;justify-content:center;">
-            <a class="ghost-btn" href="/ar-assets/HIRO.jpg" download><i class="fas fa-download"></i> Download / Print</a>
-            <button class="ghost" onclick="closeMarker()">Close</button>
-        </div>
-    </div>
-</div>
-
-<script src="/ar-assets/vendor/three.min.js"></script>
-<script src="/ar-assets/vendor/ar-threex.js"></script>
 <script>
     window.__isAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
     var CRAG = {{ crag_json|safe }};
-    var THREE_READY = typeof THREE !== 'undefined';
 
     function getCookie(name) {
         var m = document.cookie.match('(^|; )' + name + '=([^;]*)');
@@ -443,7 +418,9 @@
     });
 
     // ---- AR Modal: marker-based tracking via AR.js (THREEx) ----
-    var AR_BASE = '/ar-assets/';
+    // The marker-library assets were retired. The route guide above remains
+    // available without external marker files.
+    var AR_BASE = '';
     var arReady = (typeof THREEx !== 'undefined');
     var wallMesh = null, rotating = false;
 
@@ -533,8 +510,6 @@
         document.getElementById('ar-modal').classList.remove('open');
         document.getElementById('route-hud').classList.remove('visible');
         document.getElementById('ar-stage').classList.remove('route-active');
-        rotating = false;
-        stopCamera();
     }
 
     // ---- Start / Stop: uses AR.js when available, else plain camera fallback ----

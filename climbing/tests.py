@@ -95,7 +95,12 @@ class ClimberJourneyTests(TestCase):
         self.assertEqual(create.status_code, 302)
         self.assertTrue(Crag.objects.filter(slug='admin-test-crag').exists())
 
-    def test_ar_assets_are_served(self):
-        response = self.client.get('/ar-assets/HIRO.jpg')
+    def test_marketing_landing_page_links_to_registration(self):
+        response = self.client.get(reverse('root'))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'image/jpeg')
+        self.assertContains(response, 'Create a free account')
+        self.assertContains(response, 'href="/register/"', html=False)
+
+    def test_removed_legacy_ar_assets_are_not_routable(self):
+        response = self.client.get('/ar-assets/HIRO.jpg')
+        self.assertEqual(response.status_code, 404)

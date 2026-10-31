@@ -14,16 +14,22 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Local development and one-off migration commands read secrets from the
+# project-root .env file. Production platforms still provide environment
+# variables directly; existing values are never overwritten.
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# Local defaults make the project immediately usable, while Render must supply
-# SECRET_KEY and DATABASE_URL through its encrypted environment settings.
+# Local defaults make the project immediately usable; production deployments
+# supply SECRET_KEY and DATABASE_URL through their environment settings.
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:

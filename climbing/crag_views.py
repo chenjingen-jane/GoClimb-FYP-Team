@@ -6,9 +6,7 @@ from datetime import datetime
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from django.conf import settings
 from django.shortcuts import render, redirect
-from django.http import HttpResponse, Http404
 from django.views.decorators.csrf import ensure_csrf_cookie
 
 from rest_framework.decorators import api_view, permission_classes
@@ -110,7 +108,12 @@ def crag_detail_page(request, slug):
 
 
 def home_redirect(request):
-    return redirect('search')
+    """Public marketing landing page; application search remains at /search/."""
+    return render(request, 'marketing/index.html')
+
+
+def marketing_about_page(request):
+    return render(request, 'marketing/about.html')
 
 
 # ---------------------------------------------------------------------------
@@ -211,24 +214,3 @@ def favorites_api(request, crag_id=None):
         })
 
 
-# ---------------------------------------------------------------------------
-# Serve local AR.js assets same-origin (avoids CORS on marker/camera files)
-# ---------------------------------------------------------------------------
-def serve_ar_asset(request, path):
-    base = os.path.normpath(os.path.join(settings.BASE_DIR, 'ar-assets'))
-    full = os.path.normpath(os.path.join(base, path))
-    if full != base and not full.startswith(base + os.sep):
-        raise Http404()
-    if not os.path.isfile(full):
-        raise Http404()
-    ext = full.rsplit('.', 1)[-1].lower()
-    ctype = {
-        'js': 'application/javascript; charset=utf-8',
-        'dat': 'application/octet-stream',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'png': 'image/png',
-        'patt': 'application/octet-stream',
-    }.get(ext, 'application/octet-stream')
-    with open(full, 'rb') as fh:
-        return HttpResponse(fh.read(), content_type=ctype)
