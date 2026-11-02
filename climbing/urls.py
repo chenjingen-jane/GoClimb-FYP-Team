@@ -12,6 +12,7 @@ from .views import (
 urlpatterns = [
     # ---- Pages ----
     path('', crag_views.home_redirect, name='root'),
+    path('about/', crag_views.marketing_about_page, name='marketing_about'),
     path('search/', crag_views.search_page, name='search'),
     path('map/', crag_views.map_page, name='map'),
     path('favorites/', crag_views.favorites_page, name='favorites'),
@@ -59,6 +60,4 @@ urlpatterns = [
     path('api/forum/posts/<int:pk>/comments/', forum_views.forum_comment_api, name='api_forum_comments'),
     path('api/forum/posts/<int:pk>/like/', forum_views.forum_like_api, name='api_forum_like'),
 
-    # Local AR.js assets (served same-origin to avoid CORS on marker/camera files)
-    path('ar-assets/<path:path>', crag_views.serve_ar_asset, name='ar_assets'),
 ]
