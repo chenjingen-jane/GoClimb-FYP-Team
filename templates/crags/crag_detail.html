@@ -227,6 +227,7 @@
 
         <div class="info-card">
             <h3>Climbing Routes</h3>
+            <a href="/ar/crag/{{ crag.slug }}/" style="display:inline-flex;gap:6px;align-items:center;background:#7c3aed;color:#fff;padding:8px 12px;border-radius:10px;text-decoration:none;font-size:14px;margin-bottom:10px"><i class="fas fa-cube"></i> AR walls &amp; route picks for you</a>
             {% for route in crag.routes.all %}
             <div class="route-item">
                 <div class="route-info">

@@ -87,6 +87,11 @@ class RouteReview(models.Model):
     wall = models.ForeignKey(WallSubmission, related_name="route_reviews", on_delete=models.CASCADE)
     route_id = models.CharField(max_length=12)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING)
+    # Route information set by the admin (each route on a wall has its own); used for recommendations
+    name = models.CharField(max_length=80, blank=True, default="")
+    grade = models.CharField(max_length=3, blank=True, default="")                    # 4A ... 8B (preferences.grades)
+    style = models.CharField(max_length=10, blank=True, default="")                   # boulder / sport / toprope / trad
+    hold_types = models.JSONField(default=list, blank=True)               # jugs, crimps, ... (preferences)
     edited_by_admin = models.BooleanField(default=False)
     note = models.CharField(max_length=200, blank=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,

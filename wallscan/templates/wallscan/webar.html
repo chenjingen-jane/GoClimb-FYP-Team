@@ -12,6 +12,13 @@
   .war button { border: 0; border-radius: 999px; padding: 10px 14px; background: rgba(15,23,42,.8); color: #fff; font-size: 15px; cursor: pointer; }
   .war .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 12px calc(14px + env(safe-area-inset-bottom, 0px));
                  text-align: center; color: #e2e8f0; font: 13px Poppins, system-ui, sans-serif; background: linear-gradient(transparent, rgba(0,0,0,.65)); }
+  .war .chips { position: absolute; left: 0; right: 0; bottom: calc(44px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px;
+                overflow-x: auto; padding: 8px 12px; scrollbar-width: none; }
+  .war .chip { flex: none; border: 2px solid transparent; border-radius: 999px; padding: 8px 12px; background: rgba(15,23,42,.85); color: #fff;
+               font: 500 13px Poppins, system-ui, sans-serif; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+  .war .chip.on { border-color: #fff; background: rgba(37,99,235,.95); }
+  .war .chip .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .war .chip .rec { background: #f59e0b; color: #111827; border-radius: 999px; padding: 1px 6px; font-size: 11px; font-weight: 700; }
   .war .ref { position: absolute; right: 12px; bottom: 60px; width: 22vw; max-width: 160px; border-radius: 10px; border: 2px solid rgba(255,255,255,.7); opacity: .85; }
 </style>
 <div class="war" id="war">
@@ -25,6 +32,7 @@
       <button id="war-close" title="Close"><i class="fas fa-times"></i></button>
     </div>
   </div>
+  <div class="chips" id="war-chips"></div>
   <div class="bottom" id="war-hint">Point the camera at this wall (small picture). The route locks onto the real holds.</div>
 </div>
 <script>
@@ -41,9 +49,63 @@ window.GoClimbWebAR = (function () {
   let facing = "environment", opts = null, smooth = null, lostFrames = 0, lastSeen = 0;
   const work = document.createElement("canvas");
 
+  // ---------------------------------------------------------------- route picker (best match first)
+  let selected = null;                               // null = show all routes in opts.routeIds
+  function renderChips() {
+    const list = opts.routes || [];
+    const box = $("war-chips");
+    if (list.length < 2) { box.innerHTML = ""; return; }
+    const chip = (id, html, title) => `<button class="chip ${selected === id ? "on" : ""}" data-id="${id === null ? "" : id}" title="${title || ""}">${html}</button>`;
+    const esc = (t) => { const d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; };
+    box.innerHTML = chip(null, "All routes") + list.map((r) => chip(r.id,
+      `<span class="dot" style="background:${esc(r.color || "#f97316")}"></span>${r.rec_rank ? `<span class="rec">${r.rec_rank === 1 ? "Best" : "2nd"}</span>` : ""}${esc(r.grade || "")} ${esc(r.name || r.id)}`,
+      esc((r.reasons || []).join("; ")))).join("");
+  }
+  function select(id) {
+    selected = id || null;
+    opts.routeIds = selected ? [selected] : (opts.routes || []).map((r) => r.id);
+    renderChips();
+    const r = (opts.routes || []).find((x) => x.id === selected);
+    $("war-hint").textContent = r ? `${r.name || r.id} ${r.grade || ""}${r.reasons && r.reasons.length ? " · " + r.reasons[0] : ""}`
+                                  : "Point the camera at this wall (small picture). The routes lock onto the real holds.";
+  }
+  $("war-chips").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (b) select(b.dataset.id); });
+
   function status(text, ok) { $("war-status").textContent = text; $("war-status").className = "pill" + (ok ? " ok" : ""); }
 
   // ---------------------------------------------------------------- OpenCV.js (about 9 MB, cached for offline after the first time)
+  // OpenCV.js builds signal "ready" differently (object + callback, Promise, thenable module, or a
+  // factory function). Instead of relying on one signal, check every 100 ms until cv.Mat exists.
+  function waitForCv(timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      let kicked = false;
+      (function check() {
+        const c = window.cv;
+        if (c && c.Mat) {
+          if (!c.ORB || !c.BFMatcher || !c.findHomography) return reject(new Error("this OpenCV build has no feature matching"));
+          // Never resolve with the module itself: some builds make it "thenable", and a Promise that
+          // resolves with a thenable calls .then again -> endless loop. Wrap it instead.
+          return resolve({ module: c });
+        }
+        if (c && !kicked) {
+          kicked = true;
+          try {
+            if (typeof c === "function") {                       // factory build: cv() returns the module
+              const r = c();
+              if (r && typeof r.then === "function") r.then((m) => { window.cv = m; });
+              else if (r && r.Mat) window.cv = r;
+            } else if (typeof c.then === "function") {           // Promise / thenable module
+              c.then((m) => { if (m && m.Mat) window.cv = m; });
+            }
+          } catch (e) { console.warn("OpenCV start", e); }
+        }
+        if (Date.now() - t0 > timeoutMs) return reject(new Error("the engine didn't start in time"));
+        setTimeout(check, 100);
+      })();
+    });
+  }
+
   function loadFrom(url) {
     return new Promise((resolve, reject) => {
       const s = document.createElement("script");
@@ -52,11 +114,9 @@ window.GoClimbWebAR = (function () {
       s.onerror = () => { clearTimeout(timer); s.remove(); reject(new Error("unavailable")); };
       s.onload = () => {
         clearTimeout(timer);
-        const c = window.cv;
-        if (!c) return reject(new Error("not OpenCV"));
-        if (c instanceof Promise) return c.then(resolve, reject);
-        if (c.Mat) return resolve(c);
-        c.onRuntimeInitialized = () => resolve(c);
+        if (!window.cv) return reject(new Error("not OpenCV"));
+        status("Starting the AR engine…");
+        waitForCv(30000).then(resolve, reject);
       };
       document.head.appendChild(s);
     });
@@ -64,12 +124,12 @@ window.GoClimbWebAR = (function () {
   function loadCv() {
     if (cvPromise) return cvPromise;
     cvPromise = (async () => {
-      if (window.cv && window.cv.Mat) return (cv = window.cv);
+      if (window.cv && window.cv.Mat) { cv = window.cv; return true; }
       for (const url of CV_URLS) {
         try {
           status("Loading the AR engine… (" + (url.startsWith("http") ? new URL(url).hostname : "this website") + ")");
-          const c = await loadFrom(url);
-          cv = c; window.cv = c; return c;
+          const box = await loadFrom(url);
+          cv = box.module; window.cv = box.module; return true;
         } catch (e) { console.warn("OpenCV.js not loaded from", url, e.message); window.cv = undefined; }
       }
       cvPromise = null;
@@ -227,6 +287,7 @@ window.GoClimbWebAR = (function () {
   async function start(o) {
     opts = o;
     $("war").style.display = "block";
+    select(o.selected || ((o.routes || []).find((r) => r.rec_rank === 1) || {}).id || null);
     $("war-ref").src = o.img.src;
     smooth = null; lostFrames = 0; lastSeen = performance.now();
     if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.isSecureContext) {

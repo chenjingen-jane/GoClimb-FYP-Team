@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.db import models
 
+from .grades import GRADE_CHOICES
+
 REGIONS = [
     ("sg-central", "Singapore - Central"), ("sg-north", "Singapore - North"), ("sg-northeast", "Singapore - North-East"),
     ("sg-east", "Singapore - East"), ("sg-west", "Singapore - West"), ("malaysia", "Malaysia"),
@@ -24,6 +26,8 @@ class ClimberPreference(models.Model):
     environment = models.CharField(max_length=10, choices=ENVIRONMENTS, blank=True)
     hold_types = models.JSONField(default=list, blank=True)
     styles = models.JSONField(default=list, blank=True)
+    max_grade = models.CharField(max_length=3, choices=GRADE_CHOICES, blank=True, default="",
+                                 help_text="Hardest grade the climber usually climbs (used for recommendations)")
     updated_at = models.DateTimeField(auto_now=True)
 
     @property

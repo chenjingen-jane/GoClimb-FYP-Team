@@ -32,6 +32,15 @@
   .cm-badge.approved { background: #dcfce7; color: #166534; } .cm-badge.rejected { background: #fee2e2; color: #991b1b; }
   .cm-badge.going { background: #dcfce7; color: #166534; } .cm-badge.invited { background: #fef3c7; color: #92400e; }
   .cm-badge.declined, .cm-badge.cancelled { background: #e2e8f0; color: #475569; } .cm-badge.organizer { background: #e0e7ff; color: #3730a3; }
+  .cm-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .cm-thumb { position: relative; width: 84px; height: 84px; border-radius: 10px; overflow: hidden; background: #e2e8f0; }
+  .cm-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .cm-thumb button { position: absolute; top: 3px; right: 3px; border: 0; border-radius: 50%; width: 24px; height: 24px; background: rgba(15,23,42,.75); color: #fff; cursor: pointer; }
+  .cm-photos { display: grid; gap: 6px; margin-bottom: 10px; border-radius: 12px; overflow: hidden; }
+  .cm-photos.n1 { grid-template-columns: 1fr; } .cm-photos.n2, .cm-photos.n4 { grid-template-columns: 1fr 1fr; } .cm-photos.n3 { grid-template-columns: 1fr 1fr 1fr; }
+  .cm-photos img { width: 100%; height: 100%; max-height: 420px; object-fit: cover; display: block; background: #e2e8f0; cursor: zoom-in; }
+  .cm-photos.n2 img, .cm-photos.n3 img, .cm-photos.n4 img { aspect-ratio: 1 / 1; }
+  .cm-grade { display: inline-block; background: #2563eb; color: #fff; border-radius: 8px; padding: 3px 9px; font-weight: 700; font-size: 13px; margin-right: 6px; }
   .cm-actions { display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid #e2e8f0; padding-top: 10px; }
   .cm-comments { margin-top: 10px; display: none; }
   .cm-comment { background: #f8fafc; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 14px; }
@@ -54,13 +63,19 @@
 
 <div class="cm-wrap">
   <div class="cm-tabs">
-    <button class="cm-tab on" data-tab="feed"><i class="fas fa-stream"></i> Feed</button>
+    <button class="cm-tab on" data-tab="feed"><i class="fas fa-stream"></i> Communicate</button>
     <button class="cm-tab" data-tab="friends"><i class="fas fa-user-friends"></i> Friends<span id="cm-n-friends"></span></button>
     <button class="cm-tab" data-tab="plans"><i class="fas fa-calendar-alt"></i> Plans<span id="cm-n-plans"></span></button>
   </div>
 
   <!-- ============================== FEED -->
   <section id="tab-feed">
+    {% if crag_filter %}
+    <div class="cm-card cm-row" style="justify-content:space-between">
+      <span><i class="fas fa-map-marker-alt"></i> Discussing <b><a href="/crag/{{ crag_filter.slug }}/" style="color:#2563eb;text-decoration:none">{{ crag_filter.name }}</a></b></span>
+      <a class="cm-btn ghost sm" href="/community/">Show all posts</a>
+    </div>
+    {% endif %}
     {% if request.user.is_authenticated %}
     <div class="cm-card">
       <h3>Share a climb</h3>
@@ -89,6 +104,22 @@
         <div id="cm-map"></div>
         <div class="cm-muted" style="margin-top:6px"><i class="fas fa-info-circle"></i> New places are checked by an admin. Your post shows "Pending admin review" until then.</div>
       </div>
+      <div class="cm-muted" style="margin-top:12px"><i class="fas fa-signal"></i> What did you climb?</div>
+      <div class="cm-row" style="margin-top:6px">
+        <select class="cm-in" id="cm-grade" style="flex:1;min-width:130px">
+          <option value="">Grade (optional)</option>
+          {% for g in grades %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+        </select>
+        <select class="cm-in" id="cm-route" style="flex:2;min-width:180px;display:none"><option value="">Which route? (optional)</option></select>
+      </div>
+      <div class="cm-muted" style="margin-top:12px"><i class="fas fa-image"></i> Photos (up to 4)</div>
+      <div class="cm-row" style="margin-top:6px">
+        <label class="cm-btn ghost sm" style="cursor:pointer"><i class="fas fa-images"></i> Choose photos
+          <input type="file" id="cm-photos" accept="image/*" multiple hidden></label>
+        <label class="cm-btn ghost sm" style="cursor:pointer"><i class="fas fa-camera"></i> Take photo
+          <input type="file" id="cm-camera" accept="image/*" capture="environment" hidden></label>
+      </div>
+      <div class="cm-thumbs" id="cm-thumbs"></div>
       <div class="cm-row" style="margin-top:12px;justify-content:flex-end">
         <button class="cm-btn" id="cm-post"><i class="fas fa-paper-plane"></i> Post</button>
       </div>
@@ -160,6 +191,7 @@
 </div>
 
 {{ crags|json_script:"cm-crags" }}
+{{ crag_filter|json_script:"cm-crag-filter" }}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
@@ -198,6 +230,7 @@
   CRAGS.forEach((c) => { $("mt-crag").insertAdjacentHTML("beforeend", `<option value="${c.id}">${esc(c.name)}</option>`);
     if ($("cm-crag")) $("cm-crag").insertAdjacentHTML("beforeend", `<option value="${c.id}">${esc(c.name)}</option>`); });
   let kind = "";
+  const CRAG_FILTER = JSON.parse(document.getElementById("cm-crag-filter").textContent);   // ?crag=slug
   if (LOGGED_IN && $("cm-kind")) {
     $("cm-kind").querySelectorAll("button").forEach((b) => b.onclick = () => {
       kind = b.dataset.kind;
@@ -235,16 +268,72 @@
     $("cm-pos").textContent = `Marked: ${newPos.lat}, ${newPos.lng}`;
   }
 
+  // ---- photos: resized in the browser (max 1600 px JPEG) so uploads are fast on mobile data
+  let photos = [];
+  function resizeToJpeg(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), im = new Image();
+      im.onload = () => {
+        const s = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight));
+        const c = document.createElement("canvas");
+        c.width = Math.round(im.naturalWidth * s); c.height = Math.round(im.naturalHeight * s);
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob((b) => b ? resolve(b) : reject(new Error("Couldn't process " + file.name)), "image/jpeg", 0.85);
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`"${file.name}" can't be read here. Try a JPEG or PNG.`)); };
+      im.src = url;
+    });
+  }
+  async function addPhotos(fileList) {
+    for (const f of [...fileList]) {
+      if (photos.length >= 4) { $("cm-post-msg").textContent = "Up to 4 photos per post."; break; }
+      try { const blob = await resizeToJpeg(f); photos.push({ blob, url: URL.createObjectURL(blob) }); }
+      catch (e) { $("cm-post-msg").textContent = e.message; }
+    }
+    renderThumbs();
+  }
+  function renderThumbs() {
+    $("cm-thumbs").innerHTML = photos.map((p, i) => `<div class="cm-thumb"><img src="${p.url}" alt=""><button type="button" data-rm="${i}" title="Remove">&times;</button></div>`).join("");
+  }
+  if (LOGGED_IN && $("cm-photos")) {
+    $("cm-photos").onchange = (e) => { addPhotos(e.target.files); e.target.value = ""; };
+    $("cm-camera").onchange = (e) => { addPhotos(e.target.files); e.target.value = ""; };
+    $("cm-thumbs").onclick = (e) => { const b = e.target.closest("[data-rm]"); if (!b) return;
+      URL.revokeObjectURL(photos[+b.dataset.rm].url); photos.splice(+b.dataset.rm, 1); renderThumbs(); };
+    // routes at the chosen known place
+    $("cm-crag").onchange = async () => {
+      const sel = $("cm-route"); sel.innerHTML = '<option value="">Which route? (optional)</option>';
+      sel.style.display = "none";
+      if (!$("cm-crag").value) return;
+      try {
+        const d = await call("GET", `/api/crags/${$("cm-crag").value}/routes/`);
+        (d.results || []).forEach((r) => sel.insertAdjacentHTML("beforeend", `<option value="${r.id}" data-grade="${esc(r.grade)}">${esc(r.name)} (${esc(r.grade)})</option>`));
+        if ((d.results || []).length) sel.style.display = "";
+      } catch (e) {}
+    };
+    $("cm-route").onchange = () => { const o = $("cm-route").selectedOptions[0]; if (o && o.dataset.grade) $("cm-grade").value = o.dataset.grade; };
+  }
+
   async function submitPost() {
-    const body = { title: $("cm-title").value, content: $("cm-content").value, place: null };
+    const body = { title: $("cm-title").value, content: $("cm-content").value, place: null,
+                   grade: $("cm-grade").value, route_id: kind === "crag" && $("cm-route").value ? +$("cm-route").value : null };
     if (kind === "crag") { if (!$("cm-crag").value) return ($("cm-post-msg").textContent = "Choose the location."); body.place = { kind, crag_id: +$("cm-crag").value }; }
     if (kind === "wall") { if (!$("cm-wall").value) return ($("cm-post-msg").textContent = "Choose the wall."); body.place = { kind, wall_id: $("cm-wall").value }; }
     if (kind === "new") body.place = { kind, name: $("cm-newname").value, lat: newPos ? newPos.lat : null, lng: newPos ? newPos.lng : null };
     $("cm-post").disabled = true;
     try {
-      const d = await call("POST", "/api/community/posts/", body);
+      const form = new FormData();
+      form.append("data", JSON.stringify(body));
+      photos.forEach((p, i) => form.append("photos", p.blob, `photo-${i + 1}.jpg`));
+      $("cm-post-msg").textContent = photos.length ? "Uploading…" : "";
+      const r = await fetch("/api/community/posts/", { method: "POST", credentials: "same-origin", headers: { "X-CSRFToken": csrf() }, body: form });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401 && d.login_url) { location.href = d.login_url; return; }
+      if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
       $("cm-post-msg").textContent = d.message;
-      $("cm-title").value = ""; $("cm-content").value = ""; $("cm-newname").value = "";
+      $("cm-title").value = ""; $("cm-content").value = ""; $("cm-newname").value = ""; $("cm-grade").value = "";
+      photos.forEach((p) => URL.revokeObjectURL(p.url)); photos = []; renderThumbs();
       loadFeed();
     } catch (e) { $("cm-post-msg").textContent = e.message; }
     finally { $("cm-post").disabled = false; }
@@ -271,13 +360,19 @@
   let posts = [];
   async function loadFeed() {
     try {
-      const d = await call("GET", "/api/community/feed/" + (feedFriendsOnly ? "?friends=1" : ""));
+      const q = new URLSearchParams();
+      if (feedFriendsOnly) q.set("friends", "1");
+      if (CRAG_FILTER) q.set("crag", CRAG_FILTER.slug);
+      const d = await call("GET", "/api/community/feed/" + (q.toString() ? "?" + q : ""));
       posts = d.results;
       $("cm-feed").innerHTML = posts.length ? posts.map((p) => `
         <div class="cm-card cm-post" id="post-${p.id}">
           <div class="head"><div><div class="who"><b>${esc(p.author.username)}</b> · ${ago(p.created_at)}</div><h3>${esc(p.title)}</h3></div>
             <div>${relationHtml(p)}</div></div>
           <p>${esc(p.content)}</p>
+          ${p.photos && p.photos.length ? `<div class="cm-photos n${Math.min(p.photos.length, 4)}">${p.photos.map((u) =>
+              `<a href="${esc(u)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(u)}" alt="Photo from ${esc(p.author.username)}"></a>`).join("")}</div>` : ""}
+          ${p.grade || p.route ? `<div style="margin-bottom:8px">${p.grade ? `<span class="cm-grade">${esc(p.grade)}</span>` : ""}${p.route ? `<span class="cm-muted">${esc(p.route.name)}</span>` : ""}</div>` : ""}
           ${placeHtml(p.place)}
           <div class="cm-actions">
             <button class="cm-btn ghost sm" data-like="${p.id}"><i class="${p.is_liked ? "fas" : "far"} fa-heart"></i> <span>${p.like_count}</span></button>
@@ -450,6 +545,12 @@
   }
   loadFeed();
   refreshCounts();
+  // Opened from a crag ("Discuss this Crag"): pre-select that crag in "Share a climb"
+  if (CRAG_FILTER && LOGGED_IN && $("cm-kind")) {
+    $("cm-kind").querySelector('[data-kind="crag"]').click();
+    $("cm-crag").value = String(CRAG_FILTER.id);
+    $("cm-crag").dispatchEvent(new Event("change"));
+  }
   const start = location.hash.replace("#", "");
   if (["friends", "plans"].includes(start)) showTab(start);
 })();

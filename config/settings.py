@@ -92,6 +92,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'preferences.context_processors.climber_preferences',
+                'wallscan.context_processors.review_counts',
             ],
         },
     },

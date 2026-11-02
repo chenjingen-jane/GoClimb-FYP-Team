@@ -247,6 +247,15 @@ class CragManagementForm(ModelForm):
         fields = ('name', 'slug', 'description', 'lat', 'lng', 'rock_type', 'difficulty_min',
                   'difficulty_max', 'length_m', 'hazards', 'image')
 
+    def clean(self):
+        # The easiest grade can't be harder than the hardest grade (otherwise search can't find the crag)
+        data = super().clean()
+        from preferences.grades import rank
+        lo, hi = rank(data.get('difficulty_min')), rank(data.get('difficulty_max'))
+        if lo is not None and hi is not None and lo > hi:
+            self.add_error('difficulty_max', "The hardest grade can't be easier than the easiest grade.")
+        return data
+
 
 class RouteManagementForm(ModelForm):
     class Meta:

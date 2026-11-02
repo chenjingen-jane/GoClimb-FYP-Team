@@ -17,19 +17,26 @@
   .al-ok { background: #dcfce7; color: #166534; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
   .al-err { color: #b91c1c; font-size: 13px; }
   .al-hint { font-size: 13px; color: #64748b; margin: 8px 0 0; }
+  .al-routes { width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 560px; }
+  .al-routes th { text-align: left; font-size: 12px; color: #64748b; padding: 6px; border-bottom: 1px solid #e2e8f0; }
+  .al-routes td { padding: 6px; border-bottom: 1px solid #f1f5f9; }
+  .al-routes input, .al-routes select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; background: #fff; }
+  .al-new td { background: #f8fafc; }
+  .al-mini { border: 0; border-radius: 8px; padding: 7px 10px; background: #2563eb; color: #fff; cursor: pointer; font-size: 13px; }
+  .al-mini.red { background: #dc2626; } .al-mini.green { background: #16a34a; }
   @media (max-width: 860px) { .al-grid { grid-template-columns: 1fr; } #al-map { height: 340px; } }
 </style>
 
 <div class="al-wrap">
   <div class="al-card">
-    <h2><i class="fas fa-map-marker-alt"></i> Add a location to the map</h2>
-    <p class="al-hint">Click the map (or search your current position) to place the crag, then fill in the details.</p>
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <h2><i class="fas fa-map-marker-alt"></i> {% if crag %}Edit {{ crag.name }}{% else %}Add a location to the map{% endif %}</h2>
+      <a class="al-btn ghost" style="margin-top:0" href="/ar/review/locations/"><i class="fas fa-list"></i> All locations</a>
+    </div>
+    <p class="al-hint">Click the map to place the crag, set its grade range, then add its routes with their own grades.</p>
   </div>
 
-  {% if added %}
-    <div class="al-ok"><i class="fas fa-check-circle"></i> <b>{{ added.name }}</b> was added. It now shows on the
-      <a href="/map/">map</a> and in search.</div>
-  {% endif %}
+  {% if message %}<div class="al-ok"><i class="fas fa-check-circle"></i> {{ message }}{% if crag %} · <a href="/crag/{{ crag.slug }}/">View public page</a>{% endif %}</div>{% endif %}
 
   <div class="al-grid">
     <div class="al-card">
@@ -41,7 +48,7 @@
     </div>
 
     <form method="post" class="al-card al-form">
-      {% csrf_token %}
+      {% csrf_token %}<input type="hidden" name="action" value="save">
       {% if form.non_field_errors %}<div class="al-err">{{ form.non_field_errors }}</div>{% endif %}
       <label for="{{ form.name.id_for_label }}">Name *</label>{{ form.name }}{{ form.name.errors }}
       <label for="{{ form.description.id_for_label }}">Description</label>{{ form.description }}
@@ -51,17 +58,58 @@
       </div>
       <label for="{{ form.rock_type.id_for_label }}">Rock type</label>{{ form.rock_type }}
       <div class="al-two">
-        <div><label for="{{ form.difficulty_min.id_for_label }}">Easiest grade</label>{{ form.difficulty_min }}</div>
-        <div><label for="{{ form.difficulty_max.id_for_label }}">Hardest grade</label>{{ form.difficulty_max }}</div>
+        <div><label for="{{ form.difficulty_min.id_for_label }}">Easiest grade *</label>{{ form.difficulty_min }}{{ form.difficulty_min.errors }}</div>
+        <div><label for="{{ form.difficulty_max.id_for_label }}">Hardest grade *</label>{{ form.difficulty_max }}{{ form.difficulty_max.errors }}</div>
       </div>
       <label for="{{ form.length_m.id_for_label }}">Typical route length (m)</label>{{ form.length_m }}
       <label for="{{ form.hazards.id_for_label }}">Safety notes</label>{{ form.hazards }}
       <label for="{{ form.image.id_for_label }}">Photo URL (optional)</label>{{ form.image }}
       <div style="display:none">{{ form.slug }}</div>
-      <button class="al-btn" type="submit"><i class="fas fa-plus"></i> Add location</button>
+      <button class="al-btn" type="submit"><i class="fas fa-save"></i> {% if crag %}Save changes{% else %}Add location{% endif %}</button>
       <a class="al-btn ghost" href="/ar/review/">Back to review</a>
     </form>
   </div>
+
+  {% if crag %}
+  <div class="al-card">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <h2 style="font-size:20px">Routes at {{ crag.name }} ({{ routes|length }})</h2>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="range_from_routes">
+        <button class="al-btn ghost" style="margin-top:0" type="submit" title="Easiest and hardest route become the crag's range"><i class="fas fa-arrows-alt-v"></i> Set crag range from routes</button></form>
+    </div>
+    {% if route_error %}<div class="al-err" style="margin:8px 0">{{ route_error }}</div>{% endif %}
+    <div style="overflow-x:auto">
+    {% for r in routes %}
+    <form id="rf-{{ r.pk }}" method="post">{% csrf_token %}<input type="hidden" name="route_id" value="{{ r.pk }}"><input type="hidden" name="description" value="{{ r.description }}"></form>
+    {% endfor %}
+    <form id="rf-new" method="post">{% csrf_token %}<input type="hidden" name="action" value="add_route"></form>
+    <table class="al-routes">
+      <tr><th>Name</th><th>Grade</th><th>Type</th><th>Length (m)</th><th></th></tr>
+      {% for r in routes %}
+      <tr>
+        <td><input form="rf-{{ r.pk }}" name="name" value="{{ r.name }}" maxlength="120" required></td>
+        <td><select form="rf-{{ r.pk }}" name="grade">{% for v, l in grades %}<option value="{{ v }}" {% if r.grade == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+        <td><select form="rf-{{ r.pk }}" name="route_type">{% for v, l in route_types %}<option value="{{ v }}" {% if r.route_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+        <td><input form="rf-{{ r.pk }}" name="length_m" type="number" min="1" max="1000" value="{{ r.length_m }}" style="width:80px"></td>
+        <td style="white-space:nowrap">
+          <button form="rf-{{ r.pk }}" class="al-mini" name="action" value="update_route">Save</button>
+          <button form="rf-{{ r.pk }}" class="al-mini red" name="action" value="delete_route" formnovalidate
+                  onclick="return confirm('Delete this route?')">Delete</button></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="al-hint">No routes yet. Add the first one below.</td></tr>
+      {% endfor %}
+      <tr class="al-new">
+        <td><input form="rf-new" name="name" placeholder="New route name" maxlength="120" required></td>
+        <td><select form="rf-new" name="grade">{% for v, l in grades %}<option value="{{ v }}" {% if v == "5A" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+        <td><select form="rf-new" name="route_type">{% for v, l in route_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></td>
+        <td><input form="rf-new" name="length_m" type="number" min="1" max="1000" value="15" style="width:80px"></td>
+        <td><button form="rf-new" class="al-mini green" type="submit"><i class="fas fa-plus"></i> Add</button></td>
+      </tr>
+    </table>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 {{ crags|json_script:"al-crags" }}

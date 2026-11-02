@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .ca-wrap { width: 100%; max-width: 960px; margin: 0 auto; align-self: flex-start; padding-bottom: 50px; }
+  .ca-card { background: #fff; color: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 18px rgba(0,0,0,.1); }
+  .ca-card h2, .ca-card h3 { margin: 0; color: #0f172a; }
+  .ca-sub { color: #64748b; font-size: 14px; margin: 6px 0 0; }
+  .ca-pick { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 12px; padding: 10px 0; border-top: 1px solid #f1f5f9; align-items: start; }
+  .ca-badge { border-radius: 10px; padding: 8px; text-align: center; font-weight: 800; background: #f59e0b; color: #111827; font-size: 13px; }
+  .ca-badge.r2 { background: #cbd5e1; }
+  .ca-grade { background: #2563eb; color: #fff; border-radius: 7px; padding: 2px 8px; font-weight: 700; font-size: 13px; margin-left: 6px; }
+  .ca-why { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #475569; }
+  .ca-walls { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .ca-wall { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; text-decoration: none; color: inherit; background: #f8fafc; }
+  .ca-wall img { width: 100%; height: 140px; object-fit: cover; display: block; background: #e2e8f0; }
+  .ca-wall div { padding: 10px; font-size: 13px; color: #475569; }
+  .ca-btn { display: inline-flex; gap: 6px; align-items: center; border-radius: 10px; padding: 9px 13px; background: #7c3aed; color: #fff; text-decoration: none; font-size: 14px; margin-top: 8px; }
+</style>
+<div class="ca-wrap">
+  <div class="ca-card">
+    <a href="/crag/{{ crag.slug }}/" style="color:#2563eb;text-decoration:none;font-size:14px"><i class="fas fa-arrow-left"></i> {{ crag.name }}</a>
+    <h2 style="margin-top:6px"><i class="fas fa-cube" style="color:#7c3aed"></i> AR walls &amp; route picks</h2>
+    <p class="ca-sub">{{ cards|length }} scanned wall{{ cards|length|pluralize }} · {{ approved_total }} approved route{{ approved_total|pluralize }}</p>
+  </div>
+
+  <div class="ca-card">
+    <h3>Best for you</h3>
+    <p class="ca-sub">{{ message }}</p>
+    {% for r in best %}
+    <div class="ca-pick">
+      <div class="ca-badge {% if r.rec_rank == 2 %}r2{% endif %}">{% if r.rec_rank == 1 %}Best match{% else %}2nd match{% endif %}</div>
+      <div>
+        <b>{{ r.name }}</b><span class="ca-grade">{{ r.grade }}</span>
+        <div class="ca-sub" style="margin:2px 0 0">on {{ r.wall_name }}</div>
+        <ul class="ca-why">{% for why in r.reasons %}<li>{{ why }}</li>{% endfor %}</ul>
+        <a class="ca-btn" href="/ar/wall/{{ r.wall_id }}/?route={{ r.id|urlencode }}"><i class="fas fa-eye"></i> View &amp; open in AR</a>
+      </div>
+    </div>
+    {% empty %}
+    {% if not request.user.is_authenticated %}<p class="ca-sub"><a href="/login/?next={{ request.path|urlencode }}">Log in</a> to get routes matched to you.</p>{% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="ca-card">
+    <h3 style="margin-bottom:10px">All walls</h3>
+    <div class="ca-walls">
+      {% for c in cards %}
+      <a class="ca-wall" href="/ar/wall/{{ c.wall.wall_id }}/">
+        <img loading="lazy" src="/ar/photo/{{ c.wall.wall_id }}" alt="">
+        <div><b style="color:#0f172a">{{ c.wall.name|default:"Scanned wall" }}</b><br>{{ c.approved_routes }} approved route{{ c.approved_routes|pluralize }}
+          {% if c.wall.status != "approved" %}<br><b>{{ c.wall.get_status_display }}</b>{% endif %}</div>
+      </a>
+      {% empty %}
+      <p class="ca-sub">No scanned walls are linked to {{ crag.name }} yet. Scan one in <a href="/ar/scan/?venue={{ crag.name|urlencode }}">Wall Scan</a>, then an admin links it here.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

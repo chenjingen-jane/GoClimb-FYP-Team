@@ -89,7 +89,8 @@
                 <a href="/favorites/" {% if '/favorites' in request.path %}class="active"{% endif %}><i class="fas fa-heart"></i> Favorites</a>
                 <a href="/dashboard/" {% if '/dashboard' in request.path %}class="active"{% endif %}><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 {% if request.user.is_staff %}<a href="/manage/" {% if '/manage' in request.path %}class="active"{% endif %}><i class="fas fa-shield-alt"></i> Manage</a>
-                <a href="/ar/review/" {% if '/ar/review' in request.path %}class="active"{% endif %}><i class="fas fa-clipboard-check"></i> Review</a>{% endif %}
+                <a href="/ar/review/" {% if '/ar/review' in request.path %}class="active"{% endif %}><i class="fas fa-clipboard-check"></i> Review{% if review_pending %} <span style="background:#ef4444;color:#fff;border-radius:999px;padding:1px 7px;font-size:12px">{{ review_pending }}</span>{% endif %}</a>{% endif %}
+                <a href="/for-you/" {% if '/for-you' in request.path %}class="active"{% endif %}><i class="fas fa-star"></i> For you</a>
                 <a href="/profile/preferences/" {% if '/profile/preferences' in request.path %}class="active"{% endif %}><i class="fas fa-sliders-h"></i> Preferences</a>
                 <a href="/profile/" class="nav-user"><i class="fas fa-user-circle"></i> {{ request.user.username }}</a>
                 <a href="#" id="nav-logout" class="nav-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>

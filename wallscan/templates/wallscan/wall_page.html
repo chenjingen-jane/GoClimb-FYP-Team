@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .wp-wrap { width: 100%; max-width: 1050px; margin: 0 auto; align-self: flex-start; padding-bottom: 50px; }
+  .wp-card { background: #fff; color: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 18px rgba(0,0,0,.1); }
+  .wp-card h2, .wp-card h3 { margin: 0; color: #0f172a; }
+  .wp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; }
+  #wp-canvas { width: 100%; height: auto; display: block; border-radius: 12px; background: #0f172a; }
+  .wp-msg { font-size: 14px; color: #334155; background: #eff6ff; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+  .wp-route { border: 2px solid #e2e8f0; border-radius: 12px; padding: 10px; margin-bottom: 8px; cursor: pointer; }
+  .wp-route.on { border-color: #2563eb; background: #f8fbff; }
+  .wp-route .top { display: flex; gap: 8px; align-items: center; }
+  .wp-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+  .wp-grade { background: #2563eb; color: #fff; border-radius: 7px; padding: 2px 8px; font-weight: 700; font-size: 13px; }
+  .wp-rec { background: #f59e0b; color: #111827; border-radius: 999px; padding: 2px 8px; font-weight: 700; font-size: 11px; }
+  .wp-rec.r2 { background: #cbd5e1; }
+  .wp-why { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: #475569; }
+  .wp-small { font-size: 12px; color: #64748b; }
+  .wp-btn { border: 0; border-radius: 12px; padding: 12px 14px; font-size: 15px; font-weight: 500; cursor: pointer; color: #fff; background: #2563eb;
+            display: flex; gap: 8px; align-items: center; justify-content: center; width: 100%; margin-bottom: 8px; min-height: 48px; text-decoration: none; }
+  .wp-btn.purple { background: #7c3aed; } .wp-btn.green { background: #16a34a; } .wp-btn.ghost { background: #e2e8f0; color: #1e293b; }
+  @media (max-width: 860px) { .wp-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wp-wrap">
+  <div class="wp-card">
+    {% if wall.crag %}<a href="/ar/crag/{{ wall.crag.slug }}/" style="color:#2563eb;text-decoration:none;font-size:14px"><i class="fas fa-arrow-left"></i> {{ wall.crag.name }}</a>{% endif %}
+    <h2 style="margin-top:6px">{{ wall.name|default:"Scanned wall" }}</h2>
+    <p class="wp-small" style="margin:4px 0 0">{{ wall.venue }} · {{ wall.mode }}{% if wall.status != "approved" %} · <b>{{ wall.get_status_display }}</b>{% endif %}</p>
+  </div>
+  <div class="wp-grid">
+    <div class="wp-card"><canvas id="wp-canvas"></canvas><div class="wp-small" id="wp-status" style="margin-top:6px">Loading…</div></div>
+    <div>
+      <div class="wp-card">
+        <button class="wp-btn green" id="wp-app"><i class="fas fa-mobile-alt"></i> AR camera (phone app, Vuforia)</button>
+        <button class="wp-btn purple" id="wp-web"><i class="fas fa-video"></i> Live AR in this browser</button>
+        {% if not request.user.is_authenticated %}<a class="wp-btn ghost" href="/login/?next={{ request.path|urlencode }}">Log in for personal route picks</a>{% endif %}
+        <a class="wp-btn ghost" href="/profile/preferences/?next={{ request.path|urlencode }}"><i class="fas fa-sliders-h"></i> My preferences</a>
+      </div>
+      <div class="wp-card">
+        <h3 style="margin-bottom:8px">Routes on this wall</h3>
+        <div class="wp-msg" id="wp-msg">Loading routes…</div>
+        <div id="wp-routes"></div>
+        <div id="wp-pending"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ page_data|json_script:"wp-data" }}
+{% include "wallscan/ar_link.html" %}
+{% include "wallscan/webar.html" %}
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("wp-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => { const d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; };
+  const canvas = $("wp-canvas"), ctx = canvas.getContext("2d");
+  const STYLE = { boulder: "Boulder", sport: "Sport", toprope: "Top rope", trad: "Trad" };
+  let data = null, holds = {}, selected = null, img = new Image();
+
+  function draw() {
+    if (!img.complete || !img.naturalWidth || !data) return;
+    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    ctx.drawImage(img, 0, 0);
+    const W = canvas.width, H = canvas.height, r = Math.max(7, W / 80);
+    ctx.fillStyle = "rgba(15,23,42,.25)"; ctx.fillRect(0, 0, W, H);
+    const list = data.routes.filter((x) => !selected || x.id === selected);
+    list.forEach((rt) => {
+      const pts = rt.hold_ids.map((id) => holds[id]).filter(Boolean).map((h) => [h.x * W, h.y * H]);
+      const color = rt.color || "#f97316";
+      ctx.globalAlpha = selected || list.length === 1 ? 1 : 0.8;
+      ctx.lineJoin = "round"; ctx.lineWidth = r * 0.8; ctx.strokeStyle = "rgba(0,0,0,.55)";
+      ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+      ctx.lineWidth = r * 0.5; ctx.strokeStyle = color;
+      ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+      pts.forEach(([x, y], i) => {
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke();
+        if (selected) { ctx.fillStyle = "#0f172a"; ctx.font = `bold ${Math.round(r)}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(i === 0 ? "S" : i === pts.length - 1 ? "T" : String(i + 1), x, y); }
+      });
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function render() {
+    $("wp-msg").textContent = data.message;
+    $("wp-routes").innerHTML = data.routes.map((rt) => `
+      <div class="wp-route ${selected === rt.id ? "on" : ""}" data-id="${esc(rt.id)}">
+        <div class="top"><span class="wp-dot" style="background:${esc(rt.color || "#f97316")}"></span>
+          ${rt.rec_rank ? `<span class="wp-rec ${rt.rec_rank === 2 ? "r2" : ""}">${rt.rec_rank === 1 ? "Best match" : "2nd match"}</span>` : ""}
+          <b style="flex:1">${esc(rt.name)}</b>${rt.grade ? `<span class="wp-grade">${esc(rt.grade)}</span>` : '<span class="wp-small">no grade yet</span>'}</div>
+        <div class="wp-small" style="margin-top:4px">${rt.style ? esc(STYLE[rt.style] || rt.style) + " · " : ""}${rt.hold_ids.length} holds${rt.hold_types.length ? " · " + esc(rt.hold_types.join(", ")) : ""}</div>
+        ${rt.reasons && rt.reasons.length ? `<ul class="wp-why">${rt.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+        ${rt.unsuitable_reason ? `<div class="wp-small" style="margin-top:4px;color:#b45309">Not recommended: ${esc(rt.unsuitable_reason)}</div>` : ""}
+      </div>`).join("") || '<p class="wp-small">No approved routes yet.</p>';
+    $("wp-pending").innerHTML = data.pending.length ? `<h3 style="margin:14px 0 6px;font-size:15px">Waiting for admin review (only you see these)</h3>` +
+      data.pending.map((rt) => `<div class="wp-small" style="padding:4px 0">${esc(rt.name)} ${esc(rt.grade || "")} · ${esc(rt.status)}</div>`).join("") : "";
+    draw();
+  }
+
+  $("wp-routes").addEventListener("click", (e) => {
+    const el = e.target.closest(".wp-route"); if (!el) return;
+    selected = selected === el.dataset.id ? null : el.dataset.id;
+    render();
+  });
+
+  async function load() {
+    const r = await fetch(`/ar/walls/${D.wall_id}/routes/`, { credentials: "same-origin" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Couldn't load routes.");
+    data = d; holds = {}; d.holds.forEach((h) => holds[h.id] = h);
+    selected = (D.route && d.routes.some((x) => x.id === D.route)) ? D.route : (d.recommended[0] || null);
+    img.onload = () => { render(); $("wp-status").textContent = "Real photo, real detected holds. Tap a route to show it alone."; };
+    img.onerror = () => { $("wp-status").textContent = "The wall photo is missing."; render(); };
+    img.src = `/ar/photo/${D.wall_id}`;
+  }
+  load().catch((e) => { $("wp-msg").textContent = e.message; $("wp-status").textContent = ""; });
+
+  $("wp-app").onclick = () => GoClimbAR.open("wall/" + D.wall_id);
+  $("wp-web").onclick = () => {
+    if (!data || !img.complete) return;
+    GoClimbWebAR.start({ wallId: D.wall_id, doc: { holds: data.holds, routes: data.routes }, img, routes: data.routes, selected,
+                         routeIds: selected ? [selected] : data.routes.map((r) => r.id) });
+  };
+})();
+</script>
+{% endblock %}

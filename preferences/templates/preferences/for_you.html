@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .fy-wrap { width: 100%; max-width: 900px; margin: 0 auto; align-self: flex-start; padding-bottom: 50px; }
+  .fy-card { background: #fff; color: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 18px rgba(0,0,0,.1); }
+  .fy-card h2, .fy-card h3 { margin: 0; color: #0f172a; }
+  .fy-sub { color: #64748b; margin: 6px 0 0; font-size: 14px; }
+  .fy-crag { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 12px; align-items: start; }
+  .fy-rank { width: 56px; height: 56px; border-radius: 14px; background: #2563eb; color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 20px; }
+  .fy-rank.r1 { background: #f59e0b; } .fy-rank.r2 { background: #64748b; }
+  .fy-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .fy-tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: #f1f5f9; color: #334155; }
+  .fy-why { margin: 6px 0 0; padding-left: 18px; color: #334155; font-size: 14px; line-height: 1.6; }
+  .fy-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .fy-btn { border: 0; border-radius: 10px; padding: 9px 13px; background: #2563eb; color: #fff; text-decoration: none; font-size: 14px; }
+  .fy-btn.ghost { background: #e2e8f0; color: #1e293b; }
+</style>
+<div class="fy-wrap">
+  <div class="fy-card">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <h2><i class="fas fa-star" style="color:#f59e0b"></i> Crags picked for you</h2>
+      <a class="fy-btn ghost" href="/profile/preferences/?next=/for-you/"><i class="fas fa-sliders-h"></i> Edit preferences</a>
+    </div>
+    <p class="fy-sub">{{ result.message }}{% if result.skipped %} {{ result.skipped }} crag{{ result.skipped|pluralize }} left out because the grades don't fit your level.{% endif %}</p>
+    {% if not has_level %}<p class="fy-sub" style="color:#b45309"><i class="fas fa-info-circle"></i> Add your hardest grade or experience level so we can match difficulty.</p>{% endif %}
+  </div>
+
+  {% for c in result.crags %}
+  <div class="fy-card fy-crag">
+    <div class="fy-rank {% if forloop.counter == 1 %}r1{% elif forloop.counter == 2 %}r2{% endif %}">{{ forloop.counter }}</div>
+    <div>
+      <h3><a href="/crag/{{ c.slug }}/" style="color:#0f172a;text-decoration:none">{{ c.name }}</a></h3>
+      <div class="fy-tags">
+        <span class="fy-tag">{{ c.rock_label }}</span>
+        <span class="fy-tag">{{ c.difficulty_min }}–{{ c.difficulty_max }}</span>
+        <span class="fy-tag">{{ c.route_count }} route{{ c.route_count|pluralize }}</span>
+        {% if c.ar_walls %}<span class="fy-tag" style="background:#ede9fe;color:#5b21b6">AR walls: {{ c.ar_walls }}</span>{% endif %}
+        <span class="fy-tag">match {{ c.score|floatformat:0 }}/100</span>
+      </div>
+      <ul class="fy-why">{% for r in c.reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+      <div class="fy-btns">
+        <a class="fy-btn" href="/crag/{{ c.slug }}/"><i class="fas fa-mountain"></i> Open crag</a>
+        {% if c.ar_walls %}<a class="fy-btn" style="background:#7c3aed" href="/ar/crag/{{ c.slug }}/"><i class="fas fa-cube"></i> AR walls &amp; route picks</a>{% endif %}
+        <a class="fy-btn ghost" target="_blank" rel="noopener" href="https://www.google.com/maps?q={{ c.lat }},{{ c.lng }}"><i class="fas fa-map-marker-alt"></i> Map</a>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="fy-card fy-sub">No crags match yet. Try widening your preferences.</div>
+  {% endfor %}
+</div>
+{% endblock %}

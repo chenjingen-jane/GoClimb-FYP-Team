@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from climbing.models import Crag, Route
 
-from . import records
+from . import records, routes_data
 from .engine import get_engine
 from .models import APPROVED, PENDING, REJECTED, RouteReview, RouteWallLink, WallSubmission
 from .templatetags.wallscan_links import visible_link
@@ -110,7 +110,7 @@ def ar_api(request, subpath=""):
             resp["Cache-Control"] = "no-store"
             return resp
         if p.endswith("/unity") and sub.doc:
-            return _json(records.doc_for(user, sub, sub.doc))
+            return _json(routes_data.annotate_doc(user, sub, records.doc_for(user, sub, dict(sub.doc))))
 
     if code == 401 and not is_staff:
         return _json({"error": "Only GoClimb administrators can edit saved walls."}, 403)
@@ -173,7 +173,9 @@ def _after(engine, user, how, method, p, out, sub):
     # Reads: filter for this user
     if p == "/api/walls" and isinstance(out, list):
         return records.filter_wall_list(user, out)
-    if sub is not None and isinstance(out, dict) and (p.endswith("/unity") or WALL_ONE.match(p)):
+    if sub is not None and isinstance(out, dict) and p.endswith("/unity"):
+        return routes_data.annotate_doc(user, sub, records.doc_for(user, sub, out))
+    if sub is not None and isinstance(out, dict) and WALL_ONE.match(p):
         return records.doc_for(user, sub, out)
     return out
 
@@ -237,7 +239,16 @@ def review_list(request):
     if status in (PENDING, APPROVED, REJECTED):
         walls = walls.filter(status=status)
     counts = {s: WallSubmission.objects.filter(status=s).count() for s in (PENDING, APPROVED, REJECTED)}
-    return render(request, "wallscan/review_list.html", {"walls": walls[:200], "status": status, "counts": counts})
+    # New places climbers tagged on community posts are reviewed here too (same queue)
+    from climbing.models import GRADE_CHOICES, ROCK_TYPE_CHOICES
+    from community.models import PostPlace
+    places = PostPlace.objects.filter(kind="new").select_related("post__author", "crag", "reviewed_by").order_by("-created_at")
+    if status in (PENDING, APPROVED, REJECTED):
+        places = places.filter(status=status)
+    place_counts = {s: PostPlace.objects.filter(kind="new", status=s).count() for s in (PENDING, APPROVED, REJECTED)}
+    return render(request, "wallscan/review_list.html", {
+        "walls": walls[:200], "status": status, "counts": counts, "places": places[:200], "place_counts": place_counts,
+        "grades": GRADE_CHOICES, "rock_types": ROCK_TYPE_CHOICES})
 
 
 @ensure_csrf_cookie
@@ -251,9 +262,16 @@ def review_wall(request, wall_id):
     crags = Crag.objects.order_by("name").only("id", "name")
     crag_routes = [{"id": r.pk, "label": f"{r.name} ({r.grade})"} for r in Route.objects.filter(crag=sub.crag)] if sub.crag_id else []
     links = {l.wall_route_id: l.route_id for l in RouteWallLink.objects.filter(wall=sub)}
+    from preferences.grades import GRADES
+    from preferences.models import HOLD_TYPES
+    info = {r.route_id: {"name": r.name, "grade": r.grade, "style": r.style, "hold_types": r.hold_types or []}
+            for r in sub.route_reviews.all()}
     return render(request, "wallscan/review_wall.html", {
         "wall": sub, "crags": crags, "link_data": {"crag_routes": crag_routes, "links": links,
-                                                   "crag_name": sub.crag.name if sub.crag_id else ""}})
+                                                   "crag_name": sub.crag.name if sub.crag_id else "",
+                                                   "info": info, "grades": GRADES, "hold_types": HOLD_TYPES,
+                                                   "styles": [["boulder", "Boulder"], ["sport", "Sport"],
+                                                              ["toprope", "Top rope"], ["trad", "Trad"]]}})
 
 
 def _staff_json(request):
@@ -320,7 +338,12 @@ def review_route_link(request, wall_id, route_id):
         return _json({"error": "Link the wall to the same map location as the route first."}, 400)
     RouteWallLink.objects.filter(wall=sub, wall_route_id=route_id).exclude(route=route).delete()   # one crag route per scanned route
     RouteWallLink.objects.update_or_create(route=route, defaults={"wall": sub, "wall_route_id": route_id, "linked_by": request.user})
-    return _json({"ok": True, "linked": route.pk})
+    rv = RouteReview.objects.get(wall=sub, route_id=route_id)
+    rv.name = rv.name or route.name
+    rv.grade = rv.grade or route.grade
+    rv.style = rv.style or route.route_type
+    rv.save(update_fields=["name", "grade", "style"])
+    return _json({"ok": True, "linked": route.pk, "info": {"name": rv.name, "grade": rv.grade, "style": rv.style}})
 
 
 @ensure_csrf_cookie
@@ -335,21 +358,184 @@ def route_view(request, route_pk):
 
 
 # =====================================================================
-# Admin: add a new location (crag) by clicking on the map
+# Admin: locations (crags) - list, add on the map, edit grades, manage routes
 # =====================================================================
 
+def _location_form_class():
+    from climbing.views import CragManagementForm      # the team's form; we add grade checks on top
+    from preferences.grades import rank
+
+    class LocationForm(CragManagementForm):
+        def clean(self):
+            data = super().clean()
+            lo, hi = data.get("difficulty_min"), data.get("difficulty_max")
+            if lo and hi and rank(lo) is not None and rank(hi) is not None and rank(lo) > rank(hi):
+                self.add_error("difficulty_max", "The hardest grade can't be easier than the easiest grade.")
+            return data
+    return LocationForm
+
+
 @ensure_csrf_cookie
-def add_location(request):
+def locations_list(request):
     deny = _staff_or_redirect(request)
     if deny:
         return deny
-    from climbing.views import CragManagementForm      # the team's existing crag form + validation
-    form = CragManagementForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        crag = form.save()
-        return redirect(f"/ar/review/locations/new/?added={crag.pk}")
-    added_id = request.GET.get("added")
-    added = Crag.objects.filter(pk=added_id).first() if added_id and added_id.isdigit() else None
+    from django.db.models import Count
+    q = request.GET.get("q", "").strip()
+    crags = Crag.objects.annotate(n_routes=Count("routes", distinct=True)).order_by("name")
+    if q:
+        crags = crags.filter(name__icontains=q)
+    walls = {}
+    for cid in WallSubmission.objects.filter(crag__isnull=False).values_list("crag_id", flat=True):
+        walls[cid] = walls.get(cid, 0) + 1
+    rows = [{"crag": c, "walls": walls.get(c.pk, 0)} for c in crags]
+    return render(request, "wallscan/locations_list.html", {"rows": rows, "q": q})
+
+
+@ensure_csrf_cookie
+def location_edit(request, pk=None):
+    """Add (pk=None) or edit a location: map position, grades, and its routes with their own grades."""
+    deny = _staff_or_redirect(request)
+    if deny:
+        return deny
+    from climbing.models import GRADE_CHOICES, ROUTE_TYPE_CHOICES
+    from preferences.grades import rank
+    crag = get_object_or_404(Crag, pk=pk) if pk else None
+    LocationForm = _location_form_class()
+    form = LocationForm(instance=crag)
+    message = request.GET.get("msg", "")
+    route_error = ""
+    action = request.POST.get("action", "save") if request.method == "POST" else ""
+
+    if action == "save":
+        form = LocationForm(request.POST, instance=crag)
+        if form.is_valid():
+            crag = form.save()
+            return redirect(f"/ar/review/locations/{crag.pk}/?msg=Saved")
+    elif crag and action in ("add_route", "update_route"):
+        grades, types = dict(GRADE_CHOICES), dict(ROUTE_TYPE_CHOICES)
+        name = (request.POST.get("name") or "").strip()[:120]
+        grade, rtype = request.POST.get("grade"), request.POST.get("route_type")
+        try:
+            length = int(request.POST.get("length_m") or 15)
+        except ValueError:
+            length = -1
+        if not name or grade not in grades or rtype not in types or not 1 <= length <= 1000:
+            route_error = "Route needs a name, a grade, a type and a length (1-1000 m)."
+        else:
+            fields = {"name": name, "grade": grade, "route_type": rtype, "length_m": length,
+                      "description": (request.POST.get("description") or "").strip()[:500]}
+            if action == "add_route":
+                Route.objects.create(crag=crag, **fields)
+                return redirect(f"/ar/review/locations/{crag.pk}/?msg=Route added")
+            Route.objects.filter(pk=request.POST.get("route_id"), crag=crag).update(**fields)
+            return redirect(f"/ar/review/locations/{crag.pk}/?msg=Route updated")
+    elif crag and action == "delete_route":
+        Route.objects.filter(pk=request.POST.get("route_id"), crag=crag).delete()
+        return redirect(f"/ar/review/locations/{crag.pk}/?msg=Route deleted")
+    elif crag and action == "range_from_routes":
+        ranks = sorted((rank(g), g) for g in crag.routes.values_list("grade", flat=True) if rank(g) is not None)
+        if ranks:
+            crag.difficulty_min, crag.difficulty_max = ranks[0][1], ranks[-1][1]
+            crag.save(update_fields=["difficulty_min", "difficulty_max", "updated_at"])
+            return redirect(f"/ar/review/locations/{crag.pk}/?msg=Grade range set to {ranks[0][1]}-{ranks[-1][1]}")
+        message = "Add routes first."
+
     crags = [{"name": c["name"], "lat": float(c["lat"]), "lng": float(c["lng"])}
-             for c in Crag.objects.values("name", "lat", "lng")]
-    return render(request, "wallscan/add_location.html", {"form": form, "added": added, "crags": crags})
+             for c in Crag.objects.exclude(pk=getattr(crag, "pk", None)).values("name", "lat", "lng")]
+    routes = list(crag.routes.all().order_by("grade", "name")) if crag else []
+    return render(request, "wallscan/add_location.html", {
+        "form": form, "crag": crag, "crags": crags, "routes": routes, "message": message, "route_error": route_error,
+        "grades": GRADE_CHOICES, "route_types": ROUTE_TYPE_CHOICES})
+
+
+def add_location(request):                                  # old URL, kept working
+    return location_edit(request)
+
+
+# =====================================================================
+# Multiple routes per wall: route info (admin), all routes + recommendations (users)
+# =====================================================================
+
+ROUTE_STYLES = ("boulder", "sport", "toprope", "trad")
+
+
+@require_POST
+def review_route_info(request, wall_id, route_id):
+    """Admin sets one scanned route's own name / grade / style / hold types."""
+    from preferences.grades import normalize
+    from preferences.models import HOLD_TYPES
+    deny = _staff_json(request)
+    if deny:
+        return deny
+    sub = get_object_or_404(WallSubmission, wall_id=wall_id)
+    rv = RouteReview.objects.filter(wall=sub, route_id=route_id).first()
+    if rv is None:
+        return _json({"error": "route not found"}, 404)
+    data = json.loads(request.body or b"{}")
+    grade = normalize(data.get("grade")).rstrip("+")
+    if data.get("grade") and not grade:
+        return _json({"error": "Unknown grade. Use 4A ... 8B."}, 400)
+    style = data.get("style") or ""
+    if style and style not in ROUTE_STYLES:
+        return _json({"error": "Unknown style."}, 400)
+    valid_holds = {k for k, _ in HOLD_TYPES}
+    rv.name = (data.get("name") or "").strip()[:80]
+    rv.grade = grade
+    rv.style = style
+    rv.hold_types = [h for h in (data.get("hold_types") or []) if h in valid_holds]
+    rv.save(update_fields=["name", "grade", "style", "hold_types"])
+    return _json({"ok": True, "info": {"name": rv.name, "grade": rv.grade, "style": rv.style, "hold_types": rv.hold_types}})
+
+
+def _wall_doc(sub):
+    """Current routes document: the engine's live copy, or the database backup."""
+    code, out, _ = _engine().handle("GET", f"/api/walls/{sub.wall_id}/unity", {}, b"", {})
+    return out if code == 200 and isinstance(out, dict) else (dict(sub.doc) if sub.doc else None)
+
+
+def wall_routes_api(request, wall_id):
+    """GET: every approved route on this wall, ranked for the current climber (best + second best)."""
+    user, how = records.ar_user(request)
+    sub = WallSubmission.objects.filter(wall_id=wall_id).first()
+    if sub is None or not records.wall_visible(user, sub):
+        return _json({"error": "wall not found"}, 404)
+    doc = _wall_doc(sub)
+    if doc is None:
+        return _json({"error": "This wall has no route data."}, 404)
+    result = routes_data.routes_for_user(user, sub, doc)
+    result.update({"wall_id": sub.wall_id, "name": sub.name, "venue": sub.venue, "status": sub.status,
+                   "holds": doc.get("holds") or [], "logged_in": bool(user)})
+    return _json(result)
+
+
+@ensure_csrf_cookie
+def wall_page(request, wall_id):
+    """All routes on one wall: real photo, pick a route (recommended ones first), phone or browser AR."""
+    sub = WallSubmission.objects.select_related("crag").filter(wall_id=wall_id).first()
+    if sub is None or not records.wall_visible(request.user, sub):
+        return HttpResponse("Wall not found.", status=404)
+    ctx = _ar_app_context(request)
+    ctx.update({"wall": sub, "page_data": {"wall_id": sub.wall_id, "route": request.GET.get("route", "")}})
+    return render(request, "wallscan/wall_page.html", ctx)
+
+
+@ensure_csrf_cookie
+def crag_ar_page(request, slug):
+    """Every approved AR wall of a crag, with the best two routes for this climber across all of them."""
+    from preferences.profile_data import profile_for
+    from preferences.recommend import recommend_routes
+    crag = get_object_or_404(Crag, slug=slug)
+    walls = [w for w in WallSubmission.objects.filter(crag=crag).defer("photo") if records.wall_visible(request.user, w)]
+    all_rows, cards = [], []
+    for w in walls:
+        doc = _wall_doc(w)
+        rows = routes_data.wall_route_rows(w, doc) if doc else []
+        for r in rows:
+            r["wall_id"], r["wall_name"] = w.wall_id, w.name or "Wall"
+        all_rows += rows
+        cards.append({"wall": w, "approved_routes": sum(1 for r in rows if r["approved"]), "total": len(rows)})
+    picks = recommend_routes(all_rows, profile_for(request.user))
+    best = [r for r in picks["routes"] if r["rec_rank"]]
+    return render(request, "wallscan/crag_ar.html", {"crag": crag, "cards": cards, "best": best, "message": picks["message"],
+                                                      "approved_total": sum(c["approved_routes"] for c in cards)})

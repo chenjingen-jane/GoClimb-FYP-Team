@@ -6,8 +6,10 @@ app_name = "community"
 
 urlpatterns = [
     path("community/", views.community_page, name="page"),
+    path("forum/", views.forum_redirect, name="forum_redirect"),        # old page -> new page (same posts)
     path("community/meetups/<int:meetup_id>/calendar.ics", views.meetup_ics, name="meetup_ics"),
     path("community/review/places/", views.review_places, name="review_places"),
+    path("community/photos/<int:photo_id>/", views.post_photo, name="post_photo"),
     # JSON API
     path("api/community/feed/", views.feed, name="feed"),
     path("api/community/posts/", views.create_post, name="create_post"),

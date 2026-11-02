@@ -7,7 +7,7 @@ from django.templatetags.static import static
 
 # Bump this when you change what gets precached or the caching rules.
 # (The browser also re-installs the worker whenever sw.js changes at all.)
-CACHE_VERSION = "v4"
+CACHE_VERSION = "v5"
 
 ICONS = {
     "192": "pwa/icons/icon-192.png",

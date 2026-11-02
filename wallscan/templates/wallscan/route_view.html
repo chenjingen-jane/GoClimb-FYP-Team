@@ -33,6 +33,7 @@
         <button class="rv2-btn purple" id="rv2-web"><i class="fas fa-video"></i> Live AR in this browser</button>
         <p class="rv2-note"><b>Phone app:</b> best tracking, works offline. <b>Browser:</b> uses your webcam or phone camera, no install.
           Point the camera at this wall (or at this photo on another screen) and the route locks onto the holds.</p>
+        <a class="rv2-btn ghost" href="/ar/wall/{{ link.wall.wall_id }}/?route={{ link.wall_route_id|urlencode }}"><i class="fas fa-layer-group"></i> All routes on this wall + picks for you</a>
         {% if request.user.is_staff %}<a class="rv2-btn ghost" href="/ar/review/{{ link.wall.wall_id }}/"><i class="fas fa-pen"></i> Edit in review</a>{% endif %}
       </div>
       <div class="rv2-card"><h3 style="margin:0 0 8px">Sequence</h3><div id="rv2-steps"></div></div>
