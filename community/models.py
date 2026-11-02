@@ -7,7 +7,7 @@
 from django.conf import settings
 from django.db import models
 
-from climbing.models import Crag, ForumPost          # the team's app is registered as "frontend_app": import classes
+from climbing.models import Crag, ForumPost, Route   # the team's app is registered as "frontend_app": import classes
 from wallscan.models import WallSubmission
 
 User = settings.AUTH_USER_MODEL
@@ -92,3 +92,24 @@ class MeetupInvite(models.Model):
 
     class Meta:
         unique_together = [("meetup", "user")]
+
+
+class PostDetails(models.Model):
+    """What was climbed: grade (and optionally the exact route at the tagged crag)."""
+    post = models.OneToOneField(ForumPost, related_name="details", on_delete=models.CASCADE)
+    grade = models.CharField(max_length=3, blank=True, default="")                 # 4A ... 8B
+    route = models.ForeignKey(Route, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+
+class PostPhoto(models.Model):
+    """A photo attached to a post. Stored in the database so it survives redeploys (no disk needed)."""
+    MAX_PER_POST = 4
+    MAX_BYTES = 6 * 1024 * 1024
+    post = models.ForeignKey(ForumPost, related_name="photos", on_delete=models.CASCADE)
+    image = models.BinaryField()
+    content_type = models.CharField(max_length=30, default="image/jpeg")
+    position = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .ll-wrap { width: 100%; max-width: 1000px; margin: 0 auto; align-self: flex-start; padding-bottom: 40px; }
+  .ll-card { background: #fff; color: #1e293b; border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 18px rgba(0,0,0,.1); }
+  .ll-card h2 { margin: 0; color: #0f172a; }
+  .ll-btn { border: 0; border-radius: 10px; padding: 10px 14px; background: #2563eb; color: #fff; text-decoration: none; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+  .ll-btn.ghost { background: #e2e8f0; color: #1e293b; }
+  table { width: 100%; border-collapse: collapse; min-width: 620px; }
+  th { text-align: left; font-size: 12px; color: #64748b; padding: 8px; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+  .ll-in { padding: 10px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; min-width: 200px; }
+</style>
+<div class="ll-wrap">
+  <div class="ll-card">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <h2><i class="fas fa-map-marked-alt"></i> Locations</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="ll-btn" href="/ar/review/locations/new/"><i class="fas fa-plus"></i> Add location</a>
+        <a class="ll-btn ghost" href="/ar/review/"><i class="fas fa-clipboard-check"></i> Review</a>
+      </div>
+    </div>
+    <form method="get" style="margin-top:12px"><input class="ll-in" name="q" value="{{ q }}" placeholder="Search locations"></form>
+  </div>
+  <div class="ll-card" style="overflow-x:auto">
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Grades</th><th>Routes</th><th>AR walls</th><th></th></tr>
+      {% for row in rows %}
+      <tr>
+        <td><b>{{ row.crag.name }}</b></td>
+        <td>{{ row.crag.get_rock_type_display }}</td>
+        <td>{{ row.crag.difficulty_min }}–{{ row.crag.difficulty_max }}</td>
+        <td>{{ row.crag.n_routes }}</td>
+        <td>{{ row.walls }}</td>
+        <td style="white-space:nowrap"><a class="ll-btn" href="/ar/review/locations/{{ row.crag.pk }}/"><i class="fas fa-pen"></i> Edit</a>
+          <a class="ll-btn ghost" href="/crag/{{ row.crag.slug }}/">View</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No locations{% if q %} match "{{ q }}"{% endif %}.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

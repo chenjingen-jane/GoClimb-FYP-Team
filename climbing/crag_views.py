@@ -132,12 +132,20 @@ def crag_list_api(request):
         qs = qs.filter(name__icontains=q)
     if rock_type:
         qs = qs.filter(rock_type=rock_type)
-    if difficulty:
-        # Only crags whose range includes the requested grade.
-        qs = qs.filter(difficulty_min__lte=difficulty, difficulty_max__gte=difficulty)
+    # Grades are compared by POSITION on the scale (4A < 4B ... < 8B), not as text, so values like
+    # '5a', ' 6B ' or a range saved the wrong way round still match. grade_min / grade_max = a range;
+    # the old ?difficulty=6A (one grade) still works.
+    grade_min = request.GET.get('grade_min') or difficulty
+    grade_max = request.GET.get('grade_max') or difficulty
+    if grade_min or grade_max:
+        from preferences.grades import rank, range_overlaps
+        lo, hi = rank(grade_min), rank(grade_max)
+        if lo is not None and hi is not None and lo > hi:
+            lo, hi = hi, lo
+        qs = [c for c in qs if range_overlaps(rank(c.difficulty_min), rank(c.difficulty_max), lo, hi)]
 
     serializer = CragSerializer(qs, many=True, context={'request': request})
-    return Response({'success': True, 'count': qs.count(), 'results': serializer.data})
+    return Response({'success': True, 'count': len(serializer.data), 'results': serializer.data})
 
 
 @api_view(['GET'])

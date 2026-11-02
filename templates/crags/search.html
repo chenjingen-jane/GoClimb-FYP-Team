@@ -183,21 +183,8 @@
             <option value="boulder">Boulder</option>
             <option value="indoor">Indoor</option>
         </select>
-        <select id="difficulty">
-            <option value="">Any Difficulty</option>
-            <option value="4A">4A</option>
-            <option value="5A">5A</option>
-            <option value="5B">5B</option>
-            <option value="5C">5C</option>
-            <option value="6A">6A</option>
-            <option value="6B">6B</option>
-            <option value="6C">6C</option>
-            <option value="7A">7A</option>
-            <option value="7B">7B</option>
-            <option value="7C">7C</option>
-            <option value="8A">8A</option>
-            <option value="8B">8B</option>
-        </select>
+        <select id="difficulty" title="Easiest grade"><option value="">Grade from: any</option><option value="4A">4A</option><option value="4B">4B</option><option value="4C">4C</option><option value="5A">5A</option><option value="5B">5B</option><option value="5C">5C</option><option value="6A">6A</option><option value="6B">6B</option><option value="6C">6C</option><option value="7A">7A</option><option value="7B">7B</option><option value="7C">7C</option><option value="8A">8A</option><option value="8B">8B</option></select>
+        <select id="difficulty_max" title="Hardest grade"><option value="">to: any</option><option value="4A">4A</option><option value="4B">4B</option><option value="4C">4C</option><option value="5A">5A</option><option value="5B">5B</option><option value="5C">5C</option><option value="6A">6A</option><option value="6B">6B</option><option value="6C">6C</option><option value="7A">7A</option><option value="7B">7B</option><option value="7C">7C</option><option value="8A">8A</option><option value="8B">8B</option></select>
         <button id="search-btn"><i class="fas fa-search"></i> Search</button>
     </div>
 </div>
@@ -261,7 +248,9 @@
         var params = new URLSearchParams();
         if (q) params.set('q', q);
         if (rock) params.set('rock_type', rock);
-        if (diff) params.set('difficulty', diff);
+        var diffMax = document.getElementById('difficulty_max').value;
+        if (diff) params.set('grade_min', diff);
+        if (diffMax) params.set('grade_max', diffMax);
 
         document.getElementById('crag-grid').innerHTML =
             '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
@@ -323,6 +312,7 @@
     });
     document.getElementById('rock_type').addEventListener('change', loadCrags);
     document.getElementById('difficulty').addEventListener('change', loadCrags);
+    document.getElementById('difficulty_max').addEventListener('change', loadCrags);
 
     loadCrags();
 </script>

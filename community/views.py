@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -12,13 +12,13 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from climbing.models import Crag, ForumLike, ForumPost
+from climbing.models import Crag, ForumLike, ForumPost, Route
 from wallscan import records as wall_records
 from wallscan.models import WallSubmission
 
 from . import calendar
 from .models import (APPROVED, PENDING, REJECTED, VERIFIED, Friendship, Meetup, MeetupInvite,
-                     PostPlace)
+                     PostDetails, PostPhoto, PostPlace)
 
 User = get_user_model()
 
@@ -42,7 +42,10 @@ def api(methods, login=True):
             if login and not request.user.is_authenticated:
                 return JsonResponse({"error": "Please log in first.", "login_url": "/login/?next=/community/"}, status=401)
             try:
-                body = json.loads(request.body or b"{}") if request.method in ("POST", "PUT", "PATCH") else {}
+                if request.content_type == "multipart/form-data":         # post with photos
+                    body = json.loads(request.POST.get("data") or "{}")
+                else:
+                    body = json.loads(request.body or b"{}") if request.method in ("POST", "PUT", "PATCH") else {}
                 if not isinstance(body, dict):
                     raise Bad("Invalid request.")
                 return JsonResponse(fn(request, body, *args, **kwargs), safe=False)
@@ -103,6 +106,11 @@ def post_json(post, me, relations, liked):
     else:
         place_data = place_json(place)
     author_id = post.author_id
+    try:
+        details = post.details
+    except PostDetails.DoesNotExist:
+        details = None
+    photos = [f"/community/photos/{ph.pk}/" for ph in post.photos.all()] if post.pk else []
     return {
         "id": post.pk, "title": post.title, "content": post.content,
         "created_at": post.created_at.isoformat(),
@@ -110,6 +118,9 @@ def post_json(post, me, relations, liked):
         "relation": "me" if me.is_authenticated and author_id == me.id else relations.get(author_id, "none"),
         "like_count": post.n_likes, "comment_count": post.n_comments, "is_liked": post.pk in liked,
         "place": place_data,
+        "grade": details.grade if details else "",
+        "route": {"id": details.route_id, "name": details.route.name, "grade": details.route.grade} if details and details.route_id else None,
+        "photos": photos,
     }
 
 
@@ -141,6 +152,31 @@ def _float(v, lo, hi, label):
     return f
 
 
+# ====================================================================== photos
+
+_SIGNATURES = [(b"\xff\xd8\xff", "image/jpeg"), (b"\x89PNG\r\n\x1a\n", "image/png")]
+
+
+def _read_photo(f):
+    """Validate an uploaded photo by its real content (not its name). -> (bytes, content type)"""
+    if f.size > PostPhoto.MAX_BYTES:
+        raise Bad(f"\"{f.name}\" is too large (max {PostPhoto.MAX_BYTES // (1024 * 1024)} MB).")
+    data = f.read()
+    for sig, ctype in _SIGNATURES:
+        if data.startswith(sig):
+            return data, ctype
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return data, "image/webp"
+    raise Bad(f"\"{f.name}\" isn't a JPEG, PNG or WebP photo.")
+
+
+def post_photo(request, photo_id):
+    ph = get_object_or_404(PostPhoto, pk=photo_id)
+    resp = HttpResponse(bytes(ph.image), content_type=ph.content_type)
+    resp["Cache-Control"] = "public, max-age=604800, immutable"    # a photo never changes
+    return resp
+
+
 # ====================================================================== pages
 
 @ensure_csrf_cookie
@@ -148,14 +184,27 @@ def community_page(request):
     crags = list(Crag.objects.order_by("name").values("id", "name", "slug", "lat", "lng"))
     for c in crags:
         c["lat"], c["lng"] = float(c["lat"]), float(c["lng"])
-    return render(request, "community/community.html", {"crags": crags})
+    from preferences.grades import GRADES
+    slug = request.GET.get("crag", "")
+    crag = next((c for c in crags if c["slug"] == slug), None)
+    return render(request, "community/community.html", {"crags": crags, "grades": GRADES,
+                                                         "crag_filter": {"slug": crag["slug"], "id": crag["id"], "name": crag["name"]} if crag else None})
+
+
+def forum_redirect(request):
+    """The old forum page (/forum/, e.g. "Discuss this Crag") now opens the new Community page."""
+    from urllib.parse import urlencode
+    crag = request.GET.get("crag")
+    return redirect("/community/" + ("?" + urlencode({"crag": crag}) if crag else ""))
 
 
 # ====================================================================== posts
 
 @api(["GET"], login=False)
 def feed(request, body):
-    qs = (ForumPost.objects.select_related("author", "crag", "place", "place__crag", "place__wall")
+    qs = (ForumPost.objects.select_related("author", "crag", "place", "place__crag", "place__wall",
+                                           "details", "details__route")
+          .prefetch_related(Prefetch("photos", queryset=PostPhoto.objects.only("id", "post_id", "position")))
           .annotate(n_likes=Count("likes", distinct=True), n_comments=Count("comments", distinct=True))
           .order_by("-created_at"))
     crag = request.GET.get("crag")
@@ -177,6 +226,14 @@ def create_post(request, body):
     content = (body.get("content") or "").strip()
     if not title or not content:
         raise Bad("Please write a title and a message.")
+    from preferences.grades import normalize
+    grade = normalize(body.get("grade")).rstrip("+")
+    if body.get("grade") and not grade:
+        raise Bad("Unknown grade. Use 4A ... 8B.")
+    files = request.FILES.getlist("photos") if request.content_type == "multipart/form-data" else []
+    photos = [_read_photo(f) for f in files[:PostPhoto.MAX_PER_POST + 1]]
+    if len(photos) > PostPhoto.MAX_PER_POST:
+        raise Bad(f"Up to {PostPhoto.MAX_PER_POST} photos per post.")
     place = body.get("place") or {}
     kind = place.get("kind") or ""
     post = ForumPost(author=request.user, title=title, content=content)
@@ -219,6 +276,19 @@ def create_post(request, body):
     else:
         raise Bad("Unknown place type.")
 
+    route = None
+    if body.get("route_id"):
+        route = Route.objects.filter(pk=body["route_id"]).first()
+        if route is None or (post.crag_id and route.crag_id != post.crag_id):
+            raise Bad("That route isn't at the place you tagged.")
+        grade = grade or route.grade
+    if grade or route:
+        PostDetails.objects.create(post=post, grade=grade, route=route)
+    for i, (data, ctype) in enumerate(photos):
+        PostPhoto.objects.create(post=post, image=data, content_type=ctype, position=i)
+
+    post = (ForumPost.objects.select_related("author", "crag", "details", "details__route")
+            .prefetch_related(Prefetch("photos", queryset=PostPhoto.objects.only("id", "post_id", "position"))).get(pk=post.pk))
     post.n_likes = post.n_comments = 0
     return {"post": post_json(post, request.user, {}, set()),
             "message": "Posted! The new place is waiting for admin review." if place_obj and place_obj.status == PENDING else "Posted!"}
@@ -415,14 +485,25 @@ def place_decision(request, body, place_id):
     if status == APPROVED and body.get("add_to_map"):
         if place.lat is None or place.lng is None:
             raise Bad("This place has no map position, so it can't be added to the map. Approve without adding.")
+        from climbing.models import GRADE_CHOICES, ROCK_TYPE_CHOICES
+        from preferences.grades import rank
+        grades, rocks = dict(GRADE_CHOICES), dict(ROCK_TYPE_CHOICES)
+        gmin, gmax = body.get("difficulty_min") or "4A", body.get("difficulty_max") or "6B"
+        rock = body.get("rock_type") or "granite"
+        if gmin not in grades or gmax not in grades or rock not in rocks:
+            raise Bad("Choose valid grades and a rock type.")
+        if rank(gmin) > rank(gmax):
+            raise Bad("The hardest grade can't be easier than the easiest grade.")
         crag = Crag.objects.filter(name__iexact=place.name).first()
         if crag is None:
             crag = Crag.objects.create(name=place.name, lat=round(place.lat, 6), lng=round(place.lng, 6),
+                                       rock_type=rock, difficulty_min=gmin, difficulty_max=gmax,
                                        description=f"Added from a community post by {place.post.author.get_username()}.")
-            message = f"Approved and added \"{crag.name}\" to the map."
+            message = f"Approved and added \"{crag.name}\" ({gmin}-{gmax}) to the map."
         else:
             message = f"Approved and linked to the existing location \"{crag.name}\"."
         place.crag = crag
         ForumPost.objects.filter(pk=place.post_id).update(crag=crag)
     place.save()
-    return {"status": place.status, "message": message}
+    return {"status": place.status, "message": message,
+            "edit_url": f"/ar/review/locations/{place.crag_id}/" if place.crag_id else None}

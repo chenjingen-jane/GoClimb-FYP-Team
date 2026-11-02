@@ -21,6 +21,14 @@
   .rv-badge.rejected { background: #fee2e2; color: #991b1b; }
   .rv-src { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #e0e7ff; color: #3730a3; }
   .rv-empty { color: #64748b; padding: 20px 0; }
+  .rv-btn.green { background: #16a34a; } .rv-btn.red { background: #dc2626; }
+  button.rv-btn { border: 0; cursor: pointer; }
+  .rv-place { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .rv-small { font-size: 13px; color: #64748b; line-height: 1.5; }
+  .rv-small a { color: #2563eb; }
+  .rv-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .rv-in { flex: 1; min-width: 180px; padding: 9px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; background: #fff; }
+  .rv-in.sm { flex: 0 0 auto; min-width: 90px; }
 </style>
 
 <div class="rv-wrap">
@@ -28,20 +36,52 @@
     <div class="rv-head">
       <h2><i class="fas fa-shield-alt"></i> Wall review</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a class="rv-btn" href="/ar/review/locations/new/"><i class="fas fa-map-marker-alt"></i> Add location</a>
-        <a class="rv-btn" href="/community/review/places/"><i class="fas fa-map-marked-alt"></i> Community places</a>
+        <a class="rv-btn" href="/ar/review/locations/"><i class="fas fa-map-marker-alt"></i> Locations</a>
         <a class="rv-btn ghost" href="/ar/scan/"><i class="fas fa-camera"></i> Wall Scan</a>
       </div>
     </div>
     <div class="rv-tabs">
-      <a class="rv-tab {% if status == 'pending' %}on{% endif %}" href="?status=pending">Pending ({{ counts.pending }})</a>
-      <a class="rv-tab {% if status == 'approved' %}on{% endif %}" href="?status=approved">Approved ({{ counts.approved }})</a>
-      <a class="rv-tab {% if status == 'rejected' %}on{% endif %}" href="?status=rejected">Rejected ({{ counts.rejected }})</a>
+      <a class="rv-tab {% if status == 'pending' %}on{% endif %}" href="?status=pending">Pending ({{ counts.pending|add:place_counts.pending }})</a>
+      <a class="rv-tab {% if status == 'approved' %}on{% endif %}" href="?status=approved">Approved ({{ counts.approved|add:place_counts.approved }})</a>
+      <a class="rv-tab {% if status == 'rejected' %}on{% endif %}" href="?status=rejected">Rejected ({{ counts.rejected|add:place_counts.rejected }})</a>
       <a class="rv-tab {% if status == 'all' %}on{% endif %}" href="?status=all">All</a>
     </div>
   </div>
 
   <div class="rv-card">
+    <h3 style="margin:0 0 10px;color:#0f172a"><i class="fas fa-map-marked-alt"></i> New places from community posts ({{ places|length }})</h3>
+    {% for p in places %}
+    <div class="rv-place" data-place="{{ p.id }}">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <b style="color:#0f172a">{{ p.name }}</b><span class="rv-badge {{ p.status }}" data-badge>{{ p.get_status_display }}</span>
+      </div>
+      <div class="rv-small">Posted by <b>{{ p.post.author.username }}</b> · {{ p.created_at|date:"d M Y H:i" }} ·
+        {% if p.lat is not None %}<a target="_blank" rel="noopener" href="https://www.google.com/maps?q={{ p.lat }},{{ p.lng }}">{{ p.lat|floatformat:5 }}, {{ p.lng|floatformat:5 }}</a>{% else %}no map position{% endif %}
+        {% if p.crag %} · on the map as <a href="/ar/review/locations/{{ p.crag_id }}/">{{ p.crag.name }}</a>{% endif %}</div>
+      <div class="rv-small" style="margin-top:4px">"{{ p.post.title }}": {{ p.post.content|truncatechars:160 }}</div>
+      <div class="rv-row">
+        <input class="rv-in" data-note placeholder="Note shown on the post (optional)" value="{{ p.review_note }}">
+      </div>
+      <div class="rv-row">
+        <label class="rv-small"><input type="checkbox" data-addmap {% if p.lat is None %}disabled{% else %}checked{% endif %}> Add to the map</label>
+        <select class="rv-in sm" data-rock>{% for v, l in rock_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <select class="rv-in sm" data-gmin title="Easiest grade">{% for v, l in grades %}<option value="{{ v }}" {% if v == "4A" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <select class="rv-in sm" data-gmax title="Hardest grade">{% for v, l in grades %}<option value="{{ v }}" {% if v == "6B" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      </div>
+      <div class="rv-row">
+        <button class="rv-btn green" data-decide="approved"><i class="fas fa-check"></i> Approve</button>
+        <button class="rv-btn red" data-decide="rejected"><i class="fas fa-times"></i> Reject</button>
+        <button class="rv-btn ghost" data-decide="pending">Back to pending</button>
+      </div>
+      <div class="rv-small" data-msg></div>
+    </div>
+    {% empty %}
+      <p class="rv-empty" style="padding:4px 0">No {% if status != "all" %}{{ status }} {% endif %}places.</p>
+    {% endfor %}
+  </div>
+
+  <div class="rv-card">
+    <h3 style="margin:0 0 10px;color:#0f172a"><i class="fas fa-camera"></i> Scanned walls ({{ walls|length }})</h3>
     {% if walls %}
     <div class="rv-grid">
       {% for w in walls %}
@@ -64,4 +104,30 @@
     {% endif %}
   </div>
 </div>
+<script>
+(function () {
+  const csrf = () => { const m = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/); return m ? decodeURIComponent(m[1]) : ""; };
+  document.querySelectorAll("[data-place]").forEach((card) => {
+    card.querySelectorAll("[data-decide]").forEach((b) => b.onclick = async () => {
+      const msg = card.querySelector("[data-msg]");
+      const addMap = b.dataset.decide === "approved" && card.querySelector("[data-addmap]").checked;
+      try {
+        const r = await fetch(`/api/community/places/${card.dataset.place}/decision/`, {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+          body: JSON.stringify({ status: b.dataset.decide, note: card.querySelector("[data-note]").value, add_to_map: addMap,
+            rock_type: card.querySelector("[data-rock]").value,
+            difficulty_min: card.querySelector("[data-gmin]").value, difficulty_max: card.querySelector("[data-gmax]").value }) });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Failed");
+        const badge = card.querySelector("[data-badge]");
+        badge.className = "rv-badge " + d.status; badge.textContent = d.status;
+        msg.innerHTML = "";
+        msg.textContent = d.message + " ";
+        if (d.edit_url) { const a = document.createElement("a"); a.href = d.edit_url; a.textContent = "Edit the location and add its routes"; msg.appendChild(a); }
+      } catch (e) { msg.textContent = e.message; }
+    });
+  });
+})();
+</script>
 {% endblock %}

@@ -77,6 +77,7 @@
         </div>
         <div class="rw-row" style="margin-top:10px">
           <a class="rw-btn ghost" href="/ar/review/locations/new/"><i class="fas fa-map-marker-alt"></i> Add a new location</a>
+          <a class="rw-btn ghost" href="/ar/wall/{{ wall.wall_id }}/"><i class="fas fa-eye"></i> What climbers see</a>
         </div>
       </div>
 
@@ -220,7 +221,8 @@
       el.className = "rw-route" + (selected === rt.id ? " sel" : "");
       el.innerHTML = `
         <div class="top"><span class="rw-dot" style="background:${esc(routeColor(rt, i))}"></span>
-          <b style="flex:1">${esc(rt.id)} <span style="font-weight:400;color:#64748b">${esc(rt.difficulty || "")} · ${(rt.hold_ids || []).length} holds</span></b>
+          <b style="flex:1">${esc(infoOf(rt.id).name || rt.id)} ${infoOf(rt.id).grade ? `<span class="rw-badge" style="background:#2563eb;color:#fff">${esc(infoOf(rt.id).grade)}</span>` : `<span class="rw-badge" style="background:#fee2e2;color:#991b1b" title="Routes without a grade are shown but never recommended">no grade</span>`}
+            <span style="font-weight:400;color:#64748b">${esc(rt.id)} · ${(rt.hold_ids || []).length} holds</span></b>
           <span class="rw-badge ${esc(rv.status)}">${esc(rv.status)}</span>${rv.edited_by_admin ? ' <span class="rw-badge edited">edited</span>' : ""}</div>
         <div class="rw-row">
           <button class="rw-btn green sm" data-act="approved">Approve</button>
@@ -228,13 +230,39 @@
           <button class="rw-btn ghost sm" data-act="edit"><i class="fas fa-pen"></i> Edit holds</button>
           <button class="rw-btn ghost sm" data-act="delete"><i class="fas fa-trash"></i></button>
         </div>
+        ${infoHtml(rt.id)}
         ${linkHtml(rt.id)}`;
       el.querySelector(".top").onclick = () => { selected = selected === rt.id ? null : rt.id; renderRoutes(); draw(); };
       el.querySelectorAll("[data-act]").forEach((b) => b.onclick = () => routeAction(rt, b.dataset.act));
+      const save = el.querySelector("[data-saveinfo]");
+      if (save) save.onclick = () => saveInfo(rt.id, el);
       const sel = el.querySelector("select[data-link]");
       if (sel) sel.onchange = () => linkRoute(rt.id, sel.value);
       box.appendChild(el);
     });
+  }
+
+  // ------------------------------------------------------------ each route's own name / grade / style / holds
+  const infoOf = (rid) => LINK.info[rid] || { name: "", grade: "", style: "", hold_types: [] };
+  function infoHtml(rid) {
+    const i = infoOf(rid);
+    const opt = (pairs, cur) => pairs.map(([v, l]) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`).join("");
+    return `<details style="margin-top:8px" ${i.grade ? "" : "open"}><summary class="rw-meta" style="cursor:pointer"><i class="fas fa-info-circle"></i> Route info (used for recommendations)</summary>
+      <input class="rw-field" data-f="name" maxlength="80" placeholder="Route name" value="${esc(i.name)}" style="margin-top:6px">
+      <div class="rw-row"><select class="rw-field" data-f="grade" style="flex:1"><option value="">Grade…</option>${opt(LINK.grades.map((g) => [g, g]), i.grade)}</select>
+        <select class="rw-field" data-f="style" style="flex:1"><option value="">Style…</option>${opt(LINK.styles, i.style)}</select></div>
+      <div class="rw-row" style="margin-bottom:6px">${LINK.hold_types.map(([v, l]) =>
+        `<label class="rw-meta" style="margin-right:6px"><input type="checkbox" data-hold value="${esc(v)}" ${(i.hold_types || []).includes(v) ? "checked" : ""}> ${esc(l)}</label>`).join("")}</div>
+      <button class="rw-btn sm" data-saveinfo><i class="fas fa-save"></i> Save route info</button></details>`;
+  }
+  async function saveInfo(rid, el) {
+    const body = { name: el.querySelector('[data-f="name"]').value, grade: el.querySelector('[data-f="grade"]').value,
+                   style: el.querySelector('[data-f="style"]').value,
+                   hold_types: [...el.querySelectorAll("[data-hold]:checked")].map((c) => c.value) };
+    try {
+      const d = await call("POST", `/ar/review/${WALL}/routes/${rid}/info/`, body);
+      LINK.info[rid] = d.info; renderRoutes(); status(`${rid} info saved.`);
+    } catch (err) { status("Couldn't save: " + err.message); }
   }
 
   // ------------------------------------------------------------ Option A: show a crag route on this real wall
@@ -253,9 +281,10 @@
   }
   async function linkRoute(rid, routePk) {
     try {
-      await call("POST", `/ar/review/${WALL}/routes/${rid}/link/`, { route_pk: routePk ? Number(routePk) : null });
+      const d = await call("POST", `/ar/review/${WALL}/routes/${rid}/link/`, { route_pk: routePk ? Number(routePk) : null });
       Object.keys(LINK.links).forEach((k) => { if (String(LINK.links[k]) === String(routePk)) delete LINK.links[k]; });
       if (routePk) LINK.links[rid] = Number(routePk); else delete LINK.links[rid];
+      if (d && d.info) LINK.info[rid] = Object.assign({}, infoOf(rid), d.info);
       renderRoutes();
       status(routePk ? `${rid} is now shown as that crag route ("View on wall").` : `${rid} unlinked.`);
     } catch (err) { status("Link failed: " + err.message); }

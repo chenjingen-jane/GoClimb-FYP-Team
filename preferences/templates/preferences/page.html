@@ -21,6 +21,19 @@
   {% if saved %}<div class="pf-ok"><i class="fas fa-check-circle"></i> Saved.</div>{% endif %}
   {% if error %}<div class="pf-err">{{ error }}</div>{% endif %}
 
+  <h3>Your level</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <select class="pf-select" name="experience_level" aria-label="Experience level">
+      <option value="">Experience…</option>
+      {% for v, label in experience_levels %}<option value="{{ v }}" {% if profile.experience_level == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select class="pf-select" name="max_grade" aria-label="Hardest grade you climb">
+      <option value="">Hardest grade I climb…</option>
+      {% for v, label in grades %}<option value="{{ v }}" {% if pref.max_grade == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <p class="sub" style="margin:6px 0 0;font-size:13px">Your hardest grade gives the most accurate route picks. Without it we use your experience level.</p>
+
   <h3>Region</h3>
   <select class="pf-select" name="region" id="pf-region">
     <option value="">Choose your region…</option>
@@ -45,6 +58,7 @@
   </div>
 
   <button class="pf-btn" type="submit"><i class="fas fa-save"></i> Save preferences</button>
+  <a href="/for-you/" style="margin-left:10px;color:#2563eb;text-decoration:none"><i class="fas fa-star"></i> See crags picked for you</a>
 </form>
 <script>
   document.getElementById("pf-region").addEventListener("change", function () {
