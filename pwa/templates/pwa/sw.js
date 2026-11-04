@@ -86,7 +86,7 @@ self.addEventListener("fetch", (event) => {
     if (p.startsWith("/ar/photo/") || p.startsWith("/ar/overlay/")) return event.respondWith(staleWhileRevalidate(event, req, WALLS));
     if (p.startsWith("/community/photos/")) return event.respondWith(cacheFirst(req, IMAGES, MAX_IMAGES));
     if (p.startsWith("/ar/api/") || p.startsWith("/api/")) return event.respondWith(networkFirst(req, DATA, 5000));
-    if (p.startsWith("/ar-assets/") || p.startsWith("/media/")) return event.respondWith(staleWhileRevalidate(event, req, ASSETS));
+    if (p.startsWith("/media/")) return event.respondWith(staleWhileRevalidate(event, req, ASSETS));
     if (p === "/manifest.webmanifest") return event.respondWith(networkFirst(req, PRECACHE, 3000));
     return;
   }

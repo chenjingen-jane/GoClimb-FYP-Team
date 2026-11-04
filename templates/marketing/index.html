@@ -1,0 +1,110 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Go Climb – Find your next climb in Singapore</title>
+  <meta name="description" content="Go Climb helps you find crags and climbing gyms across Singapore, browse routes, and scan a wall to get route suggestions.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="{% static 'marketing/images/favicon.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a href="/" class="logo" aria-label="Go Climb home">
+        <img src="{% static 'marketing/images/logo.svg' %}" alt="" width="22" height="22">
+        Go Climb
+      </a>
+      <nav class="nav" aria-label="Main">
+  <a href="/about/">About</a>
+  <a href="/login/">Log in</a>
+  <a href="/register/" class="btn btn-primary">Sign up</a>
+</nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div class="hero-copy">
+          <h1>Find your next climb in Singapore.</h1>
+          <p class="lead">A Comprehensive Rock Climbing Buddy Just For You!</p>
+          <div class="hero-actions">
+            <a href="/register/" class="btn btn-primary">Create a free account</a>
+            <a href="#features" class="btn btn-ghost">See what it does</a>
+          </div>
+        </div>
+
+        <div class="hero-photo">
+          <img src="{% static 'marketing/images/Climbing.png' %}" alt="The rock face at Dairy Farm Quarry">
+        </div>
+    </section>
+
+    <section id="features" class="features">
+      <div class="wrap">
+        <div>
+          <img src="{% static 'marketing/images/search.png' %}" alt="Search Bar">
+          <h2>Find it</h2>
+          <p>Search or browse the map for crags and gyms across the island, from Dairy Farm Quarry to your local bouldering gym.</p>
+        </div>
+        <div>
+          <img src="{% static 'marketing/images/scan.png' %}" alt="Scan Crag">
+          <h2>Scan it</h2>
+          <p>Take a photo of a wall or upload one. Go Climb finds the holds and suggests routes you can try.</p>
+        </div>
+        <div>
+          <img src="{% static 'marketing/images/share.png' %}" alt="Share">
+          <h2>Share it</h2>
+          <p>Join the community to share beta, ask about conditions and find people to climb with.</p>
+        </div>
+        <div class="full-width">
+          <h2>Why GoClimb?</h2>
+          <p>Because, we are a rock climbing platform that combines up-to-date AR visualization technology with a mission to connect climbers.</p>
+          <p>Make your rock climbing trip planning to be effortless!</p>
+        </div>
+        <div class="full-width split">
+  <img src="{% static 'marketing/images/AR.png' %}" alt="3D AR view of a crag with routes">
+  <div>
+    <h2>Introducing our 3D AR Crag Visualization</h2>
+    <p>With our technology, route finding becomes easier for everyone. Just scan, then climb</p>
+  </div>
+</div>
+
+<div class="full-width split reverse">
+  <img src="{% static 'marketing/images/Weather.png' %}" alt="Weather report showing current conditions and 3-day forecast">
+  <div>
+    <h2>Up-to-date weather report and 3-day weather prediction, with hazard report</h2>
+    <p>Weather plays a huge role for rock climbing. With accurate weather and hazard report, the climbers' safety can be ensured.</p>
+    <p>Plus, with our 3-day weather prediction, climbers could plan their trip 2-3 days before the date.</p>
+  </div>
+</div>
+
+<div class="full-width split">
+  <img src="{% static 'marketing/images/meet-climber.avif' %}" alt="Two climbers together at a crag">
+  <div>
+    <h2>A Platform That Connects Climbers</h2>
+    <p>From beginners to advanced climbers. Make new friends in our chat forum and share your rock climbing tips and tricks</p>
+  </div>
+</div>
+        <div class="full-width cta">
+  <h2>Come! What are you waiting for?</h2>
+  <h3>Join the GoClimb Community Now!</h3>
+  <a href="/register/" class="btn btn-primary">Get started</a>
+</div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 Go Climb</span>
+    </div>
+  </footer>
+
+</body>
+</html>
