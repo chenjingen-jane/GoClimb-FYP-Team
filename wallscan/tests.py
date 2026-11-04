@@ -274,3 +274,50 @@ class AdminLocationTests(IsolatedEngine, TestCase):
         self.assertEqual(self.client.get("/ar/review/locations/").status_code, 403)
         self.client.post("/ar/review/locations/new/", self.form())
         self.assertFalse(Crag.objects.filter(name="New Crag").exists())
+
+
+class RestoreAfterWipedDiskTests(IsolatedEngine, TestCase):
+    """Free hosting wipes the disk on restart: walls must come back from the database with the same IDs."""
+
+    def setUp(self):
+        super().setUp()
+        import cv2
+        import numpy as np
+        img = np.full((300, 400, 3), 200, np.uint8)
+        cv2.circle(img, (100, 100), 20, (30, 30, 200), -1)
+        self.photo = cv2.imencode(".jpg", img)[1].tobytes()
+        self.wid = str(uuid.uuid4())
+        doc = {"wall_id": self.wid, "name": "Backup wall", "venue": "Gym", "mode": "indoor", "updated_at": "2026-11-01T10:00:00",
+               "holds": [{"id": f"H{i}", "x": 0.1 * i, "y": 0.9 - 0.1 * i, "confidence": 0.9, "type": "detected", "status": "detected"}
+                         for i in range(1, 7)],
+               "routes": [{"id": "R2", "hold_ids": ["H1", "H2", "H3"], "edited": False,
+                           "points": [{"hold_id": "H1", "limb": "LH", "limb_status": "confirmed"}]},
+                          {"id": "R5", "hold_ids": ["H4", "H5", "H6"], "edited": True, "points": []}]}
+        self.sub = WallSubmission.objects.create(wall_id=self.wid, name="Backup wall", venue="Gym", mode="indoor",
+                                                 status=APPROVED, doc=doc, photo=self.photo)
+        for rid in ("R2", "R5"):
+            RouteReview.objects.create(wall=self.sub, route_id=rid, status=APPROVED, grade="5A")
+        self.admin = User.objects.create_user("admin", password="pw-12345678", is_staff=True)
+
+    def test_first_request_restores_wall_with_same_ids(self):
+        from wallscan.views import _engine
+        engine = _engine()                                   # empty disk -> restored from the database
+        doc = engine.store.export_doc(self.wid)
+        self.assertEqual([h["id"] for h in doc["holds"]], [f"H{i}" for i in range(1, 7)])
+        self.assertEqual([(r["id"], r["hold_ids"]) for r in doc["routes"]],
+                         [("R2", ["H1", "H2", "H3"]), ("R5", ["H4", "H5", "H6"])])
+        self.assertEqual(doc["routes"][0]["points"][0]["limb"], "LH")
+        # admin editing works on the restored wall and new route numbers don't collide
+        self.client.force_login(self.admin)
+        r = self.client.post(f"/ar/api/walls/{self.wid}/routes", json.dumps({"hold_ids": ["H1", "H4"]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.json()["route_id"], "R6")
+        self.assertEqual(self.client.get(f"/ar/photo/{self.wid}").content, self.photo)
+
+    def test_manual_command(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("restore_walls", stdout=out)
+        self.assertIn("Engine has 1 wall(s)", out.getvalue())

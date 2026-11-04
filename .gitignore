@@ -12,3 +12,5 @@ db.sqlite3
 *.log
 goclimb_data/
 unity_export/
+# exported database for moving to Neon (contains password hashes)
+data_export.json

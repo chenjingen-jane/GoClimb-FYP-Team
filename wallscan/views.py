@@ -1,5 +1,6 @@
 import json
 import re
+import threading
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -31,14 +32,26 @@ WALL_ONE = re.compile(rf"^/api/walls/({ID})$")
 SCAN_SAVE = re.compile(r"^/api/scans/[0-9a-f]{32}/save$")
 
 
+_restore_lock = threading.Lock()
+
+
 def _engine():
-    return get_engine(
+    engine = get_engine(
         data_dir=str(settings.GOCLIMB_AR_DATA),
         unity_dir=str(settings.GOCLIMB_AR_UNITY_EXPORT),
         admin_token=settings.GOCLIMB_AR_ADMIN_TOKEN,
         admin_open=False,                    # editing walls = logged-in staff (or the admin token)
         prefix="/ar",
     )
+    # First use after the server (re)started: put back walls the disk lost (free hosting wipes it).
+    if not getattr(engine, "restored_from_db", False):
+        with _restore_lock:
+            if not getattr(engine, "restored_from_db", False):
+                try:
+                    records.restore_missing_walls(engine)
+                finally:
+                    engine.restored_from_db = True
+    return engine
 
 
 def _json(data, status=200):
