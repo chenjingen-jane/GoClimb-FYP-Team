@@ -17,14 +17,22 @@ import os
 import re
 import threading
 
-from goclimb_routes.scan import ScanExpired, ScanService
-from goclimb_routes.schema import API_VERSION
-from goclimb_routes.store import DuplicateWallError, Store, WallNotFound
+# The route engine (OpenCV + NumPy) is loaded the first time AR is used, not when the website starts:
+# ordinary pages stay light on small servers.
+ScanExpired = ScanService = API_VERSION = DuplicateWallError = Store = WallNotFound = None
+
+
+def _load_engine_libs():
+    global ScanExpired, ScanService, API_VERSION, DuplicateWallError, Store, WallNotFound
+    if Store is None:
+        from goclimb_routes.scan import ScanExpired, ScanService
+        from goclimb_routes.schema import API_VERSION
+        from goclimb_routes.store import DuplicateWallError, Store, WallNotFound
 
 ID = r"([0-9a-fA-F-]{36})"
 SCAN = r"([0-9a-f]{32})"
-EDITOR_HTML = os.path.join(os.path.dirname(os.path.abspath(__import__("goclimb_routes").__file__)),
-                           "web", "index.html")
+EDITOR_HTML = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "goclimb_routes", "web", "index.html")
 MAX_BODY = 40_000_000
 
 
@@ -35,6 +43,7 @@ class Forbidden(Exception):
 class ArEngine:
     def __init__(self, data_dir: str, unity_dir: str, admin_token: str = "", admin_open: bool = False,
                  prefix: str = "/ar"):
+        _load_engine_libs()
         os.makedirs(data_dir, exist_ok=True)
         os.makedirs(unity_dir, exist_ok=True)
         self.store = Store(data_dir)
