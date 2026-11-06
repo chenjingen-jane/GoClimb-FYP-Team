@@ -25,6 +25,16 @@
   .ws-badge.approved { background: #dcfce7; color: #166534; }
   .ws-badge.rejected { background: #fee2e2; color: #991b1b; }
   .ws-badge.unreviewed { background: #e2e8f0; color: #334155; }
+  .ws-badge.upload { background: #fef3c7; color: #92400e; } .ws-badge.sending { background: #dbeafe; color: #1e40af; }
+  .ws-badge.failed, .ws-badge.signin { background: #fee2e2; color: #991b1b; }
+  .ws-outbox { border: 2px dashed #f59e0b; border-radius: 14px; padding: 12px; margin-bottom: 14px; background: #fffbeb; }
+  .ws-outbox h4 { margin: 0; font-size: 15px; color: #92400e; }
+  .ws-ob-item { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid #fde68a; }
+  .ws-ob-item img { width: 76px; height: 76px; object-fit: cover; border-radius: 10px; background: #e2e8f0; }
+  .ws-ob-item .meta { font-size: 13px; color: #475569; line-height: 1.45; }
+  .ws-ob-item .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .ws-ob-item .btns .ws-btn { padding: 8px 12px; font-size: 13px; }
+  .ws-qform img { width: 100%; max-height: 260px; object-fit: contain; border-radius: 12px; background: #0f172a; margin: 6px 0 8px; }
 
   /* Camera */
   .ws-cam { position: relative; background: #000; border-radius: 14px; overflow: hidden; margin-top: 12px; }
@@ -106,8 +116,18 @@
 
     <div class="ws-status" id="ws-status"></div>
     <div class="ws-note" id="ws-offline-note" style="display:none">
-      <i class="fas fa-plane"></i> You're offline. Saved walls below still work. To scan a <b>new</b> wall offline,
-      use the <b>AR camera</b>: the GoClimbAR app finds holds and routes on the phone itself.
+      <i class="fas fa-plane"></i> You're offline. You can still take photos of new walls: they are <b>kept on this device</b>
+      and upload by themselves when you're back online (holds and routes are found after upload). Saved walls below still work.
+    </div>
+    <div class="ws-qform" id="ws-queue-form" style="display:none;margin-top:10px">
+      <b><i class="fas fa-cloud-arrow-up"></i> Save this photo to upload later</b>
+      <img id="ws-q-img" alt="">
+      <input class="ws-input" type="text" id="ws-q-name" placeholder="Wall name (e.g. Cave wall)" style="margin-bottom:8px">
+      <input class="ws-input" type="text" id="ws-q-venue" placeholder="Gym / crag (e.g. Boulder Planet)" style="margin-bottom:8px">
+      <div class="ws-row">
+        <button class="ws-btn green" id="ws-q-save"><i class="fas fa-floppy-disk"></i> Keep on this device</button>
+        <button class="ws-btn ghost" id="ws-q-discard">Discard</button>
+      </div>
     </div>
   </div>
 
@@ -151,11 +171,13 @@
     </div>
     <input class="ws-input" type="text" id="ws-search" placeholder="Search walls or gyms" style="margin-bottom:12px">
     <div class="ws-status" id="ws-offline-status" style="margin:-4px 0 10px"></div>
+    <div id="ws-outbox"></div>
     <div class="ws-walls" id="ws-walls"></div>
     <p class="ws-note">You see approved walls, plus your own submissions while they wait for review.</p>
   </div>
 </div>
 
+{{ request.user.username|json_script:"ws-user" }}
 {% include "wallscan/ar_link.html" %}
 {% include "wallscan/webar.html" %}
 <script>
@@ -268,14 +290,20 @@
   async function guarded(fn) {
     ["ws-take", "ws-cam-open", "ws-shutter"].forEach((id) => $(id).disabled = true);
     try { await fn(); }
-    catch (err) { status(navigator.onLine ? "Scan failed: " + err.message : "You're offline. Use the AR camera to scan new walls offline."); }
-    finally { ["ws-take", "ws-cam-open", "ws-shutter"].forEach((id) => $(id).disabled = !navigator.onLine && id !== "ws-shutter"); }
+    catch (err) { status("Scan failed: " + err.message); }
+    finally { ["ws-take", "ws-cam-open", "ws-shutter"].forEach((id) => $(id).disabled = false); }
+  }
+  // Online: scan now. Offline (or the connection drops): keep the photo on this device instead of losing it.
+  async function scanOrQueue(prepared) {
+    if (!navigator.onLine) return offerQueue(prepared);
+    try { await scanImage(prepared); }
+    catch (err) { if (err instanceof TypeError || !navigator.onLine) return offerQueue(prepared); throw err; }
   }
 
   $("ws-take").onclick = () => $("ws-file").click();
   $("ws-file").onchange = (e) => {
     const f = e.target.files[0]; e.target.value = "";
-    if (f) guarded(async () => { status("Preparing photo…"); await scanImage(await fromFile(f)); });
+    if (f) guarded(async () => { status("Preparing photo…"); await scanOrQueue(await fromFile(f)); });
   };
 
   // In-page camera: phone back camera or laptop webcam (needs https or localhost)
@@ -311,7 +339,7 @@
     c.width = v.videoWidth - 2 * mx; c.height = v.videoHeight - 2 * my;
     c.getContext("2d").drawImage(v, mx, my, c.width, c.height, 0, 0, c.width, c.height);
     stopCamera();
-    await scanImage(await fitToJpeg(c, c.width, c.height, 1600));
+    await scanOrQueue(await fitToJpeg(c, c.width, c.height, 1600));
   });
 
   $("ws-save").onclick = async () => {
@@ -469,12 +497,136 @@
     finally { btn.disabled = !navigator.onLine; }
   };
 
+  // ================================================================ outbox: walls waiting to upload
+  const ME = JSON.parse(document.getElementById("ws-user").textContent || '""');
+  const OUTBOX = (() => {
+    let dbp = null;
+    const db = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open("goclimb-outbox", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("scans", { keyPath: "id" });
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const run = (mode, fn) => db().then((d) => new Promise((res, rej) => {
+      const t = d.transaction("scans", mode), req = fn(t.objectStore("scans"));
+      t.oncomplete = () => res(req && "result" in req ? req.result : undefined);
+      t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    }));
+    return { all: () => run("readonly", (s) => s.getAll()), put: (it) => run("readwrite", (s) => s.put(it)),
+             remove: (id) => run("readwrite", (s) => s.delete(id)) };
+  })();
+  let queued = null, confirmDel = "", sendingNow = false;
+
+  function offerQueue(prepared) {
+    queued = prepared;
+    $("ws-q-img").src = "data:image/jpeg;base64," + prepared.b64;
+    $("ws-q-venue").value = $("ws-q-venue").value || $("ws-venue").value || localStorage.getItem("gc-last-venue") || "";
+    $("ws-queue-form").style.display = "";
+    $("ws-queue-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    status("You're offline: name this wall and keep it on this device. It uploads by itself when you're online.");
+    setTimeout(() => $("ws-q-name").focus(), 300);
+  }
+  $("ws-q-discard").onclick = () => { queued = null; $("ws-queue-form").style.display = "none"; status(""); };
+  $("ws-q-save").onclick = async () => {
+    const name = $("ws-q-name").value.trim(), venue = $("ws-q-venue").value.trim();
+    if (!queued) return;
+    if (!name || !venue) { status("Please enter the wall name and the gym / crag."); return; }
+    try {
+      await OUTBOX.put({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 8), user: ME, name, venue,
+                         mode: $("ws-mode").value, max_routes: +$("ws-max").value, b64: queued.b64,
+                         created_at: new Date().toISOString(), state: "upload", error: "" });
+      try { localStorage.setItem("gc-last-venue", venue); } catch (e) {}
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      queued = null; $("ws-q-name").value = ""; $("ws-queue-form").style.display = "none";
+      status(`"${name}" is kept on this device. You can scan the next wall now.`);
+      await renderOutbox();
+      if (navigator.onLine) sendAll();
+    } catch (err) { status("Could not keep the photo on this device: " + err.message); }
+  };
+
+  const BADGE = { upload: "Pending upload", sending: "Sending…", failed: "Failed", signin: "Sign-in needed" };
+  async function renderOutbox() {
+    const box = $("ws-outbox");
+    let items = [];
+    try { items = (await OUTBOX.all()).sort((a, b) => a.created_at.localeCompare(b.created_at)); } catch (e) {}
+    if (!items.length) { box.innerHTML = ""; return; }
+    const mine = items.filter((it) => it.user === ME).length;
+    box.innerHTML = `<div class="ws-outbox">
+      <div class="ws-row" style="justify-content:space-between"><h4><i class="fas fa-cloud-arrow-up"></i> Waiting to upload (on this device) · ${items.length}</h4>
+        ${mine > 1 ? `<button class="ws-btn ghost" data-ob="all" style="padding:8px 12px;font-size:13px">Send all</button>` : ""}</div>
+      ${items.map((it) => {
+        const other = it.user !== ME;
+        const when = new Date(it.created_at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+        const state = other ? "signin" : it.state;
+        return `<div class="ws-ob-item">
+          <img src="data:image/jpeg;base64,${it.b64}" alt="">
+          <div><b>${esc(it.name)}</b>
+            <div class="meta">${esc(it.venue)} · ${esc(it.mode)} · taken ${esc(when)}</div>
+            <span class="ws-badge ${state}">${BADGE[state] || state}</span>
+            <div class="meta">${other ? "Taken while " + esc(it.user || "another account") + " was logged in: log in as them to send it."
+                                 : state === "failed" ? esc(it.error) : state === "signin" ? 'Your login has expired: <a href="/login/?next=/ar/scan/">log in</a>, then send.' : ""}</div>
+            <div class="btns">
+              ${other ? "" : `<button class="ws-btn green" data-ob="send" data-id="${it.id}" ${it.state === "sending" ? "disabled" : ""}><i class="fas fa-paper-plane"></i> Send now</button>`}
+              <button class="ws-btn ghost" data-ob="del" data-id="${it.id}">${confirmDel === it.id ? "Tap again to delete" : "Delete"}</button>
+            </div></div></div>`;
+      }).join("")}</div>`;
+  }
+  $("ws-outbox").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-ob]"); if (!b) return;
+    if (b.dataset.ob === "all") return sendAll(true);
+    const items = await OUTBOX.all(), it = items.find((x) => x.id === b.dataset.id); if (!it) return;
+    if (b.dataset.ob === "send") return sendAll(true, it.id);
+    if (confirmDel !== it.id) { confirmDel = it.id; return renderOutbox(); }
+    confirmDel = ""; await OUTBOX.remove(it.id);
+    status(`Deleted "${it.name}" from this device. It was never uploaded.`); renderOutbox();
+  });
+
+  // Send waiting walls (one at a time). Uses its own request: never jumps to the login page in the background.
+  async function sendOne(it) {
+    it.state = "sending"; it.error = ""; await OUTBOX.put(it); await renderOutbox();
+    let r;
+    try {
+      r = await fetch(API + "/api/walls", { method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+        body: JSON.stringify({ name: it.name, venue: it.venue, mode: it.mode, image_b64: it.b64, source: "web", max_routes: it.max_routes || 6 }) });
+    } catch (err) { it.state = "upload"; await OUTBOX.put(it); return "offline"; }          // no connection: keep it
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data.wall_id) { await OUTBOX.remove(it.id); return "sent"; }
+    if (r.status === 409 && data.error === "duplicate" && !it.renamed) {                      // name taken: keep it, new name
+      it.name = it.name + " (" + new Date(it.created_at).toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + ")";
+      it.renamed = true; await OUTBOX.put(it); return sendOne(it);
+    }
+    if (r.status === 401 || r.status === 403) { it.state = "signin"; await OUTBOX.put(it); return "signin"; }
+    it.state = "failed"; it.error = data.error || ("Server error " + r.status); await OUTBOX.put(it); return "failed";
+  }
+  async function sendAll(loud, onlyId) {
+    if (sendingNow) { if (loud) status("Already sending, one moment."); return; }
+    const run = async () => {
+      sendingNow = true;
+      let sent = 0, left = 0, offline = false;
+      try {
+        for (const it of await OUTBOX.all()) {
+          if (it.user !== ME || (onlyId && it.id !== onlyId)) continue;
+          if (offline) { left++; continue; }
+          const res = await sendOne(it);
+          if (res === "sent") sent++; else { left++; if (res === "offline" || res === "signin") offline = true; }
+        }
+      } finally { sendingNow = false; }
+      await renderOutbox();
+      if (sent) { status(`${sent} wall(s) uploaded: they're waiting for admin review.`); loadWalls(); }
+      else if (loud && left) status(navigator.onLine ? "Some walls couldn't be sent: see the messages below." : "Still offline: they'll upload by themselves when you're online.");
+    };
+    // one tab at a time, so the same wall is never uploaded twice
+    if (navigator.locks) return navigator.locks.request("goclimb-outbox", { ifAvailable: true }, (lock) => lock ? run() : null);
+    return run();
+  }
+
   function onNetworkChange() {
     const off = !navigator.onLine;
     $("ws-offline-note").style.display = off ? "" : "none";
-    $("ws-take").disabled = off; $("ws-cam-open").disabled = off; $("ws-offline-save").disabled = off;
-    if (off) stopCamera();
+    $("ws-offline-save").disabled = off;                     // Photo and Camera keep working offline
     loadWalls();
+    renderOutbox();
+    if (!off) sendAll();
   }
   window.addEventListener("online", onNetworkChange);
   window.addEventListener("offline", onNetworkChange);
