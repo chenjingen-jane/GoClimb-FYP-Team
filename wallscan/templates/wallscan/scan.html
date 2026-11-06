@@ -49,6 +49,10 @@
   .ws-wall { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; cursor: pointer; background: #f8fafc; }
   .ws-wall img { width: 100%; height: 120px; object-fit: cover; display: block; background: #e2e8f0; }
   .ws-wall div { padding: 8px 10px; font-size: 13px; line-height: 1.4; }
+  .ws-off { display: block; width: calc(100% - 16px); margin: 0 8px 8px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b;
+            border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: pointer; }
+  .ws-off.on { background: #dcfce7; border-color: #86efac; color: #166534; }
+  .ws-off:disabled { opacity: .6; cursor: default; }
   #ws-file { display: none; }
 
   @media (max-width: 820px) {
@@ -140,7 +144,7 @@
   <div class="ws-card">
     <div class="ws-row" style="justify-content:space-between;margin-bottom:10px">
       <h3>Saved walls</h3>
-      <button class="ws-btn ghost" id="ws-offline-save" title="Keep every wall you can see on this device"><i class="fas fa-download"></i> Save for offline</button>
+      <button class="ws-btn ghost" id="ws-offline-save" title="Keep every wall you can see on this device"><i class="fas fa-download"></i> Save all for offline</button>
     </div>
     <input class="ws-input" type="text" id="ws-search" placeholder="Search walls or gyms" style="margin-bottom:12px">
     <div class="ws-status" id="ws-offline-status" style="margin:-4px 0 10px"></div>
@@ -371,6 +375,11 @@
         el.innerHTML = `<img loading="lazy" src="${API}/photo/${w.wall_id}" alt=""><div><b>${esc(w.name)}</b><br>${esc(w.venue)} · ${esc(w.mode)}
           ${w.mine || w.review_status !== "approved" ? "<br>" + badge(w.review_status) : ""}</div>`;
         el.onclick = () => openWall(w);
+        const off = document.createElement("button");
+        off.className = "ws-off"; off.type = "button"; off.textContent = "…";
+        off.onclick = (e) => { e.stopPropagation(); toggleOffline(w, off); };
+        el.appendChild(off);
+        showOffline(w.wall_id, off);
         box.appendChild(el);
       });
       if (!walls.length) box.innerHTML = '<p class="ws-note">No walls yet.</p>';
@@ -380,6 +389,55 @@
 
   // ---------------------------------------------------------------- offline
   function offlineStatus(text) { $("ws-offline-status").textContent = text || ""; }
+
+  // One wall at a time: the same caches the offline system (service worker) reads from.
+  const OFF_CACHES = { data: "gc-data-v1", walls: "gc-walls-v1", pages: "gc-pages-v1" };
+  const offUrls = (id) => ({ data: [`/ar/api/walls/${id}/unity`, `/ar/walls/${id}/routes/`],
+                             walls: [`/ar/photo/${id}`], pages: [`/ar/wall/${id}/`] });
+  async function isKept(id) {
+    if (!("caches" in window)) return false;
+    const [photo, doc] = await Promise.all([
+      caches.open(OFF_CACHES.walls).then((c) => c.match(`/ar/photo/${id}`)),
+      caches.open(OFF_CACHES.data).then((c) => c.match(`/ar/api/walls/${id}/unity`))]);
+    return !!(photo && doc);
+  }
+  async function keepWall(id) {
+    for (const [name, urls] of Object.entries(offUrls(id))) {
+      const cache = await caches.open(OFF_CACHES[name]);
+      for (const u of urls) {
+        const r = await fetch(u, { credentials: "same-origin" });
+        if (!r.ok) throw new Error(`${u} (${r.status})`);
+        await cache.put(u, r);
+      }
+    }
+  }
+  async function dropWall(id) {
+    for (const [name, urls] of Object.entries(offUrls(id))) {
+      const cache = await caches.open(OFF_CACHES[name]);
+      await Promise.all(urls.map((u) => cache.delete(u)));
+    }
+  }
+  async function showOffline(id, btn) {
+    if (!("caches" in window) || !window.isSecureContext) { btn.style.display = "none"; return; }
+    const kept = await isKept(id).catch(() => false);
+    btn.classList.toggle("on", kept);
+    btn.innerHTML = kept ? '<i class="fas fa-check"></i> Offline · Remove' : '<i class="fas fa-download"></i> Keep offline';
+    btn.disabled = !kept && !navigator.onLine;
+  }
+  async function toggleOffline(w, btn) {
+    btn.disabled = true;
+    try {
+      if (await isKept(w.wall_id)) {
+        await dropWall(w.wall_id);
+        offlineStatus(`"${w.name}" removed from this device.`);
+      } else {
+        btn.textContent = "Saving…";
+        await keepWall(w.wall_id);
+        offlineStatus(`"${w.name}" is saved on this device: it opens without internet, including Live AR.`);
+      }
+    } catch (err) { offlineStatus(`Could not save "${w.name}": ${err.message}`); }
+    showOffline(w.wall_id, btn);
+  }
   $("ws-offline-save").onclick = async () => {
     if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
       offlineStatus("Offline mode isn't active here yet. Reload the page once; it needs https (or localhost)."); return;
