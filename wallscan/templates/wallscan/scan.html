@@ -122,6 +122,9 @@
         <button class="ws-btn green" id="ws-ar-wall" style="display:none;width:100%;margin-bottom:8px">
           <i class="fas fa-mobile-alt"></i> AR camera (phone app)
         </button>
+        <a class="ws-btn ghost" id="ws-picks" href="#" style="display:none;width:100%;margin-bottom:8px;text-decoration:none;justify-content:center">
+          <i class="fas fa-star"></i> Route picks for you
+        </a>
         <button class="ws-btn" id="ws-web-ar" style="display:none;width:100%;margin-bottom:10px;background:#7c3aed">
           <i class="fas fa-video"></i> Live AR in this browser
         </button>
@@ -144,7 +147,7 @@
   <div class="ws-card">
     <div class="ws-row" style="justify-content:space-between;margin-bottom:10px">
       <h3>Saved walls</h3>
-      <button class="ws-btn ghost" id="ws-offline-save" title="Keep every wall you can see on this device"><i class="fas fa-download"></i> Save all for offline</button>
+      <button class="ws-btn ghost" id="ws-offline-save" title="Keep every wall you can see on this device"><i class="fas fa-download"></i> Download all walls</button>
     </div>
     <input class="ws-input" type="text" id="ws-search" placeholder="Search walls or gyms" style="margin-bottom:12px">
     <div class="ws-status" id="ws-offline-status" style="margin:-4px 0 10px"></div>
@@ -228,6 +231,7 @@
     arWallId = opts.wallId || null;
     $("ws-ar-wall").style.display = arWallId ? "" : "none";
     $("ws-web-ar").style.display = arWallId ? "" : "none";
+    showPicks();
     $("ws-result").style.display = "";
     $("ws-title").textContent = opts.title;
     $("ws-review-badge").innerHTML = d.review ? badge(d.review.status) : "";
@@ -316,7 +320,7 @@
       const res = await call("POST", `/api/scans/${scanId}/save`, { name: $("ws-name").value.trim(), venue: $("ws-venue").value.trim() });
       status(res.created ? "Submitted! An admin will review it. You can already open it in the AR camera." : "This wall was already saved.");
       $("ws-save-box").style.display = "none";
-      arWallId = res.wall_id; $("ws-ar-wall").style.display = ""; $("ws-web-ar").style.display = "";
+      arWallId = res.wall_id; $("ws-ar-wall").style.display = ""; $("ws-web-ar").style.display = ""; showPicks();
       $("ws-review-badge").innerHTML = badge(res.review_status || "pending");
       loadWalls();
     } catch (err) {
@@ -336,6 +340,12 @@
   // ---------------------------------------------------------------- Vuforia AR camera (GoClimbAR app)
   $("ws-ar-scan").onclick = () => GoClimbAR.open("scan");
   $("ws-ar-wall").onclick = () => { if (arWallId) GoClimbAR.open("wall/" + arWallId); };
+  // All routes on this wall with the best and second-best match for this climber
+  function showPicks() {
+    const a = $("ws-picks");
+    a.style.display = arWallId ? "flex" : "none";
+    if (arWallId) a.href = `/ar/wall/${arWallId}/`;
+  }
   $("ws-web-ar").onclick = () => {
     if (!arWallId || !img || !doc) return;
     const shown = (doc.routes || []).map((r) => r.id).filter((id) => !hidden.has(id));
@@ -421,7 +431,7 @@
     if (!("caches" in window) || !window.isSecureContext) { btn.style.display = "none"; return; }
     const kept = await isKept(id).catch(() => false);
     btn.classList.toggle("on", kept);
-    btn.innerHTML = kept ? '<i class="fas fa-check"></i> Offline · Remove' : '<i class="fas fa-download"></i> Keep offline';
+    btn.innerHTML = kept ? '<i class="fas fa-check"></i> Downloaded · Remove' : '<i class="fas fa-download"></i> Download wall';
     btn.disabled = !kept && !navigator.onLine;
   }
   async function toggleOffline(w, btn) {
@@ -431,11 +441,11 @@
         await dropWall(w.wall_id);
         offlineStatus(`"${w.name}" removed from this device.`);
       } else {
-        btn.textContent = "Saving…";
+        btn.textContent = "Downloading…";
         await keepWall(w.wall_id);
-        offlineStatus(`"${w.name}" is saved on this device: it opens without internet, including Live AR.`);
+        offlineStatus(`"${w.name}" is downloaded: it opens without internet, including Live AR.`);
       }
-    } catch (err) { offlineStatus(`Could not save "${w.name}": ${err.message}`); }
+    } catch (err) { offlineStatus(`Could not download "${w.name}": ${err.message}`); }
     showOffline(w.wall_id, btn);
   }
   $("ws-offline-save").onclick = async () => {
