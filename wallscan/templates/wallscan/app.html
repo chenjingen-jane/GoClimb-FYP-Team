@@ -21,6 +21,13 @@
 
     <div class="ar-warn" id="ar-missing" style="display:none">
       <i class="fas fa-circle-info"></i> It looks like GoClimbAR isn't installed on this phone yet.
+      <div style="margin-top:8px;font-size:13px;line-height:1.5">
+        Already installed? Tap <b>Try direct link</b> below. If the phone still doesn't offer to open GoClimbAR,
+        the installed app can't receive website links: install the latest GoClimbAR version.
+      </div>
+      <div style="display:none;margin-top:10px">
+        <a class="ar-btn ghost" id="ar-direct" href="#"><i class="fas fa-link"></i> Try direct link</a>
+      </div>
     </div>
     <div class="ar-warn" id="ar-desktop" style="display:none">
       <i class="fas fa-mobile-screen"></i> The AR camera needs a phone. Open this page on your phone:<br>
@@ -61,6 +68,9 @@
     document.getElementById("ar-desktop").style.display = "";
     document.getElementById("ar-here").textContent = location.origin + "/ar/app/?open=" + encodeURIComponent(path);
   }
+  // Troubleshooting: a plain goclimb:// link (Chrome asks "Open with GoClimbAR?" if the app accepts links)
+  var direct = document.getElementById("ar-direct");
+  if (direct && GoClimbAR.isMobile) { direct.href = GoClimbAR.direct(path); direct.parentElement.style.display = ""; }
   document.getElementById("ar-open").onclick = function () {
     if (!GoClimbAR.isMobile) { document.getElementById("ar-desktop").scrollIntoView({ behavior: "smooth" }); return; }
     GoClimbAR.open(path);
