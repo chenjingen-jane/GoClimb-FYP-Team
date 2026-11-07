@@ -24,7 +24,10 @@
 
 <div class="wp-wrap">
   <div class="wp-card">
-    {% if wall.crag %}<a href="/ar/crag/{{ wall.crag.slug }}/" style="color:#2563eb;text-decoration:none;font-size:14px"><i class="fas fa-arrow-left"></i> {{ wall.crag.name }}</a>{% endif %}
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:14px">
+      <a href="/ar/scan/" style="color:#2563eb;text-decoration:none"><i class="fas fa-arrow-left"></i> Back to Wall Scan</a>
+      {% if wall.crag %}<a href="/ar/crag/{{ wall.crag.slug }}/" style="color:#2563eb;text-decoration:none"><i class="fas fa-mountain"></i> {{ wall.crag.name }}</a>{% endif %}
+    </div>
     <h2 style="margin-top:6px">{{ wall.name|default:"Scanned wall" }}</h2>
     <p class="wp-small" style="margin:4px 0 0">{{ wall.venue }} · {{ wall.mode }}{% if wall.status != "approved" %} · <b>{{ wall.get_status_display }}</b>{% endif %}</p>
   </div>
