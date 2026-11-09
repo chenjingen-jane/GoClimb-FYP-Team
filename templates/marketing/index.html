@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="{% static 'marketing/images/favicon.svg' %}" type="image/svg+xml">
-  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}?v=4">
 </head>
 <body>
 
@@ -42,8 +42,12 @@
         </div>
 
         <div class="hero-photo">
-          <img src="{% static 'marketing/images/Climbing.png' %}" alt="The rock face at Dairy Farm Quarry">
+          <video autoplay muted loop playsinline controls aria-label="Go Climb marketing video">
+            <source src="{% static 'marketing/images/GoClimb_Marketing_Video.mp4' %}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
         </div>
+      </div>
     </section>
 
     <section id="features" class="features">
@@ -69,31 +73,43 @@
           <p>Make your rock climbing trip planning to be effortless!</p>
         </div>
         <div class="full-width split">
-  <img src="{% static 'marketing/images/AR.png' %}" alt="3D AR view of a crag with routes">
-  <div>
-    <h2>Introducing our 3D AR Crag Visualization</h2>
-    <p>With our technology, route finding becomes easier for everyone. Just scan, then climb</p>
-  </div>
-</div>
+          <img src="{% static 'marketing/images/AR.png' %}" alt="3D AR view of a crag with routes">
+          <div>
+            <h2>Introducing our 3D AR Crag Visualization</h2>
+            <p>With our technology, route finding becomes easier for everyone. Just scan, then climb.</p>
+          </div>
+        </div>
 
-<div class="full-width">
-  <h2>Climb Anywhere with Offline Access</h2>
-  <p>Go Climb supports offline functionality, allowing users to access supported platform content even when an internet connection is unavailable.</p>
-  <p>Whether you are outdoors or in an area with limited network coverage, you can enjoy a more convenient climbing experience without relying on a constant internet connection.</p>
-</div>
+        <div class="full-width split reverse">
+          <img src="{% static 'marketing/images/offline.png' %}" alt="Offline access">
+          <div>
+            <h2>Climb Anywhere with Offline Access</h2>
+            <p>Whether you are outdoors or in an area with limited network coverage, you can enjoy a convenient climbing experience without relying on a constant internet connection.</p>
+          </div>
+        </div>
 
-<div class="full-width split">
-  <img src="{% static 'marketing/images/meet-climber.avif' %}" alt="Two climbers together at a crag">
-  <div>
-    <h2>A Platform That Connects Climbers</h2>
-    <p>From beginners to advanced climbers. Make new friends in our chat forum and share your rock climbing tips and tricks</p>
-  </div>
-</div>
+        <div class="full-width split">
+          <img src="{% static 'marketing/images/Weather.png' %}" alt="Weather report showing current conditions and forecast">
+          <div>
+            <h2>Up-to-date weather report and 3-day weather prediction, with hazard report</h2>
+            <p>Weather plays a huge role for rock climbing. With accurate weather and hazard report, climbers can plan more safely.</p>
+            <p>Our 3-day weather prediction helps climbers plan their trip before the date.</p>
+          </div>
+        </div>
+
+        <div class="full-width split reverse">
+          <img src="{% static 'marketing/images/interaction3.png' %}" alt="Climbers helping each other">
+          <div>
+            <h2>A Platform That Connects Climbers</h2>
+            <p>From beginners to advanced climbers. Make new friends in our community and share your rock climbing tips and tricks.</p>
+          </div>
+        </div>
         <div class="full-width cta">
-  <h2>Come! What are you waiting for?</h2>
-  <h3>Join the GoClimb Community Now!</h3>
-  <a href="/register/" class="btn btn-primary">Get started</a>
-</div>
+          <h2>Come! What are you waiting for?</h2>
+          <h3>Join the GoClimb Community Now!</h3>
+          <a href="/register/" class="btn btn-primary">Get started</a>
+        </div>
+      </div>
     </section>
   </main>
 

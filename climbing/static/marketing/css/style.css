@@ -35,6 +35,16 @@ body {
   color: var(--text);
   background: var(--bg);
 }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(18, 26, 38, 0.78), rgba(18, 26, 38, 0.60)),
+    url("../images/Climbing.png") center / cover no-repeat;
+  z-index: -1;
+  pointer-events: none;
+}
 img { max-width: 100%; display: block; }
 a { color: var(--accent); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
@@ -59,7 +69,15 @@ p { margin: 0; max-width: 62ch; }
 .btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
 
 /* ---------- Header ---------- */
-.site-header { background: var(--granite); color: #fff; }
+.site-header {
+  background: rgba(20, 22, 25, 0.85);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
 .site-header .wrap {
   display: flex;
   align-items: center;
@@ -85,30 +103,29 @@ p { margin: 0; max-width: 62ch; }
 
 /* ---------- Hero ---------- */
 .hero {
-  background: var(--granite);
+  background: transparent;
   color: #fff;
-  padding-top: 3rem;
+  padding: 3rem 0 4rem;
   overflow: hidden;
 }
 .hero .wrap {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   gap: 3rem;
-  align-items: end;
+  align-items: center;
 }
-.hero-copy { padding-bottom: 5rem; }
+.hero-copy { padding-bottom: 1rem; }
 .hero h1 { font-size: clamp(2.75rem, 6vw, 4.75rem); font-weight: 800; line-height: 1.05; }
-.hero .lead { color: #c3c8cb; font-size: 1.25rem; margin-top: 1.5rem; }
+.hero .lead { color: #dbe2ea; font-size: 1.25rem; margin-top: 1.5rem; }
 .hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 2rem; }
 
 .hero-photo {
   position: relative;
-  aspect-ratio: 4 / 5;
-  background: #3a4146;
-  border-radius: 8px 8px 0 0;
+  background: #000;
+  border-radius: 8px;
   overflow: hidden;
 }
-.hero-photo img { width: 100%; height: 100%; object-fit: cover; }
+.hero-photo video { display: block; width: 100%; height: auto; }
 
 /* Route line drawn over the photo */
 .topo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -138,14 +155,17 @@ p { margin: 0; max-width: 62ch; }
 }
 
 @media (max-width: 860px) {
-  .hero .wrap { grid-template-columns: 1fr; gap: 0; }
-  .hero-copy { padding-bottom: 2.5rem; }
-  .hero-photo { aspect-ratio: 4 / 3; }
+  .hero .wrap { grid-template-columns: 1fr; gap: 2rem; }
+  .hero-copy { padding-bottom: 0; }
 }
 
 /* ---------- Features ---------- */
-.features { padding: 5rem 0; }
+.features { padding: 2rem 0 5rem; }
 .features .wrap {
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 3rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)); /* equal columns, even with wide images */
   gap: 2.5rem;
@@ -165,7 +185,7 @@ p { margin: 0; max-width: 62ch; }
 .full-width .btn { margin-top: 1.5rem; }
 
 @media (max-width: 760px) {
-  .features .wrap { grid-template-columns: 1fr; }
+  .features .wrap { grid-template-columns: 1fr; padding: 2rem 1.5rem; }
 }
 
 /* ---------- Zigzag image + text rows ---------- */
@@ -247,7 +267,7 @@ p { margin: 0; max-width: 62ch; }
 }
 
 /* ---------- Footer ---------- */
-footer { border-top: 1px solid var(--line); padding: 2rem 0; color: var(--muted); font-size: 0.95rem; }
+footer { background: rgba(20, 22, 25, 0.85); padding: 2rem 0; color: #c3c8cb; font-size: 0.95rem; }
 footer .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .about img {
   width: 100%;
