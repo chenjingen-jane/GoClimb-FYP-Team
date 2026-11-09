@@ -27,6 +27,7 @@
 
 /* ---------- Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
+
 body {
   margin: 0;
   font-family: var(--font);
@@ -35,6 +36,19 @@ body {
   color: var(--text);
   background: var(--bg);
 }
+
+/* Background photo layer: full photo with a dark blue overlay, like the app */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(18, 26, 38, 0.78), rgba(18, 26, 38, 0.6)),  /* overlay: raise 0.78/0.6 for darker */
+    url("../images/Climbing.png") center / cover no-repeat;
+  z-index: -1;
+  pointer-events: none;
+}
+
 img { max-width: 100%; display: block; }
 a { color: var(--accent); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
@@ -59,7 +73,15 @@ p { margin: 0; max-width: 62ch; }
 .btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
 
 /* ---------- Header ---------- */
-.site-header { background: var(--granite); color: #fff; }
+.site-header {
+  background: rgba(20, 22, 25, 0.85);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
 .site-header .wrap {
   display: flex;
   align-items: center;
@@ -81,71 +103,68 @@ p { margin: 0; max-width: 62ch; }
 .nav a:not(.btn):hover { text-decoration: underline; text-underline-offset: 4px; }
 .nav .btn { padding: 0.55rem 1rem; }
 
-
-
 /* ---------- Hero ---------- */
 .hero {
-  background: var(--granite);
+  background: transparent;    /* photo shows through, like the app */
   color: #fff;
-  padding-top: 3rem;
+  padding: 3rem 0 4rem;      /* space above and below */
   overflow: hidden;
 }
 .hero .wrap {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   gap: 3rem;
-  align-items: end;
+  align-items: center;
 }
-.hero-copy { padding-bottom: 5rem; }
+.hero-copy { padding-bottom: 1rem; }
 .hero h1 { font-size: clamp(2.75rem, 6vw, 4.75rem); font-weight: 800; line-height: 1.05; }
-.hero .lead { color: #c3c8cb; font-size: 1.25rem; margin-top: 1.5rem; }
+.hero .lead { color: #dbe2ea; font-size: 1.25rem; margin-top: 1.5rem; }
 .hero-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 2rem; }
 
+/* Video box: takes the video's own shape, nothing cropped */
 .hero-photo {
   position: relative;
-  aspect-ratio: 4 / 5;
-  background: #3a4146;
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
   overflow: hidden;
+  background: #000;
 }
-.hero-photo img { width: 100%; height: 100%; object-fit: cover; }
+.hero-photo img,
+.hero-photo video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 
-/* Route line drawn over the photo */
-.topo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.topo path {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1200;
-  stroke-dashoffset: 1200;
-  animation: draw 2.2s 0.3s ease-out forwards;
+/* Sound on/off button over the video */
+.sound-toggle {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
 }
-.topo .bolt {
-  fill: var(--granite);
-  stroke: var(--accent);
-  stroke-width: 2.5;
-  opacity: 0;
-  animation: pop 0.3s ease-out forwards;
-}
-.topo .grade { opacity: 0; animation: pop 0.4s 2.4s ease-out forwards; }
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes pop { to { opacity: 1; } }
-
-@media (prefers-reduced-motion: reduce) {
-  .topo path, .topo .bolt, .topo .grade { animation: none; stroke-dashoffset: 0; opacity: 1; }
-}
+.sound-toggle:hover { background: rgba(0, 0, 0, 0.8); }
 
 @media (max-width: 860px) {
-  .hero .wrap { grid-template-columns: 1fr; gap: 0; }
-  .hero-copy { padding-bottom: 2.5rem; }
-  .hero-photo { aspect-ratio: 4 / 3; }
+  .hero .wrap { grid-template-columns: 1fr; gap: 2rem; }
+  .hero-copy { padding-bottom: 0; }
 }
 
 /* ---------- Features ---------- */
-.features { padding: 5rem 0; }
+.features { padding: 2rem 0 5rem; }
 .features .wrap {
+  /* content sits on a solid card over the photo, like the app's crag cards */
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 3rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)); /* equal columns, even with wide images */
   gap: 2.5rem;
@@ -160,12 +179,12 @@ p { margin: 0; max-width: 62ch; }
 .features h2 { font-size: 1.75rem; }
 .features p { color: var(--muted); margin-top: 0.5rem; }
 
-/* Block that spans the whole row (e.g. "Join the community") */
+/* Block that spans the whole row */
 .full-width { grid-column: 1 / -1; }
 .full-width .btn { margin-top: 1.5rem; }
 
 @media (max-width: 760px) {
-  .features .wrap { grid-template-columns: 1fr; }
+  .features .wrap { grid-template-columns: 1fr; padding: 2rem 1.5rem; }
 }
 
 /* ---------- Zigzag image + text rows ---------- */
@@ -186,13 +205,14 @@ p { margin: 0; max-width: 62ch; }
 }
 .features .wrap > .split.reverse > img { order: 2; }
 
-/* Remove the blue line on the "Join" block too */
+/* Remove the blue line on a block */
 .features .wrap > .no-line { border-top: none; }
 
 @media (max-width: 760px) {
   .features .wrap > .split { grid-template-columns: 1fr; gap: 1.5rem; }
   .features .wrap > .split.reverse > img { order: 0; }
 }
+
 /* ---------- Final call to action ---------- */
 .features .wrap > .cta {
   margin-top: 3rem;
@@ -209,9 +229,14 @@ p { margin: 0; max-width: 62ch; }
 }
 
 /* ---------- About ---------- */
-.about .wrap { max-width: var(--max); }
-.about p { max-width: 70ch; }
-.about { padding: 7rem 0 6rem; }
+.about { padding: 4rem 1.5rem 6rem; }
+.about .wrap {
+  max-width: var(--max);
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 3rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
 
 .about h1 {
   font-size: clamp(2.5rem, 6vw, 3.75rem);
@@ -221,6 +246,7 @@ p { margin: 0; max-width: 62ch; }
 }
 
 .about p {
+  max-width: 70ch;
   color: var(--muted);
   margin-bottom: 1.25rem;
 }
@@ -235,23 +261,24 @@ p { margin: 0; max-width: 62ch; }
   margin-bottom: 2.5rem;
 }
 
+.about img {
+  width: 100%;
+  border-radius: 10px;
+  margin: 1rem 0 2rem;
+}
+
 .about-team {
   margin-top: 4rem;
   padding-top: 2.5rem;
   border-top: 3px solid var(--accent);
 }
 .about-team h2 { font-size: 2rem; margin-bottom: 1.5rem; }
-.about-team img {
-  width: 100%;
-  border-radius: 10px;
-}
 
 /* ---------- Footer ---------- */
-footer { border-top: 1px solid var(--line); padding: 2rem 0; color: var(--muted); font-size: 0.95rem; }
-footer .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.about img {
-  width: 100%;
-  border-radius: 8px;
-  margin: 1rem 0 2rem;
+footer {
+  background: rgba(20, 22, 25, 0.85);
+  padding: 2rem 0;
+  color: #c3c8cb;
+  font-size: 0.95rem;
 }
-
+footer .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
