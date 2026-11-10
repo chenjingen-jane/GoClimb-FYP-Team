@@ -256,6 +256,7 @@
             </div>
 
             <div class="forecast-grid" id="weather-forecast"></div>
+            <p id="weather-note" style="font-size: 11px; color: #94a3b8; margin: 8px 0 0;">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener" style="color: #94a3b8;">Open-Meteo.com</a></p>
 
             <div style="margin-top: 20px;">
                 <p style="margin-bottom: 10px; font-weight: 600;">Safety Status:</p>
@@ -364,33 +365,77 @@
     }
 
     // ---- Weather ----
-    fetch('/api/crags/' + CRAG.id + '/weather/', { credentials: 'include' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            var w = data.results;
-            document.getElementById('weather-current').innerHTML =
-                '<i class="fas ' + w.current.icon + '" style="font-size:40px; color:#f59e0b;"></i>' +
-                '<div><h4 style="font-size:22px; margin:0;">' + w.current.temperature + '°C</h4>' +
-                '<p style="color:#64748b; margin:0;">' + w.current.condition + '</p></div>';
-            var hb = document.getElementById('hazard-badge');
-            hb.className = 'hazard-badge' + (w.hazard_status === 'Safe to Climb' ? '' : ' caution');
-            hb.innerHTML = '<i class="fas fa-' + (w.hazard_status === 'Safe to Climb' ? 'check-circle' : 'exclamation-triangle') + '"></i> ' + w.hazard_status;
-            var fg = document.getElementById('weather-forecast');
-            fg.innerHTML = '';
-            w.forecast.forEach(function (d) {
-                fg.innerHTML +=
-                    '<div class="forecast-day">' +
-                    '<div class="day">' + d.date + '</div>' +
-                    '<div class="ico"><i class="fas ' + d.icon + '"></i></div>' +
-                    '<div class="temps">' + d.temp_high + '° / ' + d.temp_low + '°</div>' +
-                    '<div class="meta">💧 ' + d.rainfall_mm + 'mm · 💨 ' + d.wind_kmh + 'km/h</div>' +
-                    '</div>';
-            });
-        })
-        .catch(function () {
-            document.getElementById('weather-current').innerHTML =
-                '<i class="fas fa-cloud" style="font-size:40px;color:#94a3b8;"></i><div><h4 style="font-size:18px;margin:0;">Mock weather unavailable</h4></div>';
+    // The visitor's browser asks Open-Meteo directly: each visitor has their own IP address, so the
+    // free rate limit is not shared with other websites on our host. Backup: our server (cached).
+    var WX_CODES = {
+        0: ['Clear sky', 'fa-sun'], 1: ['Mainly clear', 'fa-sun'], 2: ['Partly cloudy', 'fa-cloud-sun'], 3: ['Overcast', 'fa-cloud'],
+        45: ['Fog', 'fa-smog'], 48: ['Rime fog', 'fa-smog'],
+        51: ['Light drizzle', 'fa-cloud-rain'], 53: ['Drizzle', 'fa-cloud-rain'], 55: ['Heavy drizzle', 'fa-cloud-showers-heavy'],
+        61: ['Light rain', 'fa-cloud-rain'], 63: ['Rain', 'fa-cloud-showers-heavy'], 65: ['Heavy rain', 'fa-cloud-showers-heavy'],
+        80: ['Rain showers', 'fa-cloud-showers-heavy'], 81: ['Rain showers', 'fa-cloud-showers-heavy'], 82: ['Heavy showers', 'fa-cloud-showers-heavy'],
+        95: ['Thunderstorm', 'fa-bolt'], 96: ['Thunderstorm with hail', 'fa-bolt'], 99: ['Thunderstorm with hail', 'fa-bolt']
+    };
+    function wxCode(c) { return WX_CODES[c] || ['Unknown', 'fa-cloud']; }
+    function wxDay(iso) {                      // "2026-11-13" -> "Fri 13 Nov" (same as the server)
+        var p = iso.split('-'), d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+        return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] + ' ' + p[2] + ' ' +
+               ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()];
+    }
+    function wxFromOpenMeteo(d) {              // Open-Meteo response -> the same shape our server returns
+        var c = d.current, now = wxCode(c.weather_code), forecast = [];
+        for (var i = 1; i < Math.min(4, d.daily.time.length); i++) {
+            var f = wxCode(d.daily.weather_code[i]);
+            forecast.push({ date: wxDay(d.daily.time[i]), condition: f[0], icon: f[1],
+                temp_high: Math.round(d.daily.temperature_2m_max[i]), temp_low: Math.round(d.daily.temperature_2m_min[i]),
+                rainfall_mm: d.daily.precipitation_sum[i], wind_kmh: Math.round(d.daily.wind_speed_10m_max[i]) });
+        }
+        var wet = c.precipitation > 0 || c.weather_code >= 51;
+        return { current: { temperature: Math.round(c.temperature_2m), condition: now[0], icon: now[1] },
+                 forecast: forecast, hazard_status: wet ? 'Caution - wet conditions' : 'Conditions look dry' };
+    }
+    function wxShow(w) {
+        document.getElementById('weather-current').innerHTML =
+            '<i class="fas ' + w.current.icon + '" style="font-size:40px; color:#f59e0b;"></i>' +
+            '<div><h4 style="font-size:22px; margin:0;">' + w.current.temperature + '°C</h4>' +
+            '<p style="color:#64748b; margin:0;">' + w.current.condition + '</p></div>';
+        var note = document.getElementById('weather-note');
+        if (w.stale && note) note.insertAdjacentHTML('afterbegin', 'Updated ' + w.age_minutes + ' min ago (live update temporarily unavailable) · ');
+        var hb = document.getElementById('hazard-badge');
+        var dry = w.hazard_status === 'Safe to Climb' || w.hazard_status === 'Conditions look dry';
+        hb.className = 'hazard-badge' + (dry ? '' : ' caution');
+        hb.innerHTML = '<i class="fas fa-' + (dry ? 'check-circle' : 'exclamation-triangle') + '"></i> ' + w.hazard_status;
+        var fg = document.getElementById('weather-forecast');
+        fg.innerHTML = '';
+        w.forecast.forEach(function (d) {
+            fg.innerHTML +=
+                '<div class="forecast-day">' +
+                '<div class="day">' + d.date + '</div>' +
+                '<div class="ico"><i class="fas ' + d.icon + '"></i></div>' +
+                '<div class="temps">' + d.temp_high + '° / ' + d.temp_low + '°</div>' +
+                '<div class="meta">💧 ' + d.rainfall_mm + 'mm · 💨 ' + d.wind_kmh + 'km/h</div>' +
+                '</div>';
         });
+    }
+    function wxFail() {
+        document.getElementById('weather-current').innerHTML =
+            '<i class="fas fa-cloud" style="font-size:40px;color:#94a3b8;"></i><div><h4 style="font-size:18px;margin:0;">Weather temporarily unavailable</h4>' +
+            '<p style="color:#64748b; margin:0;">Please try again in a few minutes.</p></div>';
+        var hb = document.getElementById('hazard-badge');
+        hb.className = 'hazard-badge caution';
+        hb.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Check conditions on site';
+    }
+    var WX_URL = 'https://api.open-meteo.com/v1/forecast?latitude=1.3521&longitude=103.8198&timezone=Asia%2FSingapore' +
+        '&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m' +
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max&forecast_days=4';
+    fetch(WX_URL)                                // no cookies: Open-Meteo allows any website without them
+        .then(function (r) { if (!r.ok) throw new Error('Open-Meteo ' + r.status); return r.json(); })
+        .then(function (d) { wxShow(wxFromOpenMeteo(d)); })
+        .catch(function () {                     // backup: our server (15-minute cache, last good weather)
+            return fetch('/api/crags/' + CRAG.id + '/weather/', { credentials: 'include' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) { wxShow(data.results); });
+        })
+        .catch(wxFail);
 
     // ---- Transport ----
     document.getElementById('transport-btn').href =
