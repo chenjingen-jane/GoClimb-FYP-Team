@@ -256,6 +256,7 @@
             </div>
 
             <div class="forecast-grid" id="weather-forecast"></div>
+            <p id="weather-note" style="font-size: 11px; color: #94a3b8; margin: 8px 0 0;">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener" style="color: #94a3b8;">Open-Meteo.com</a></p>
 
             <div style="margin-top: 20px;">
                 <p style="margin-bottom: 10px; font-weight: 600;">Safety Status:</p>
@@ -372,9 +373,14 @@
                 '<i class="fas ' + w.current.icon + '" style="font-size:40px; color:#f59e0b;"></i>' +
                 '<div><h4 style="font-size:22px; margin:0;">' + w.current.temperature + '°C</h4>' +
                 '<p style="color:#64748b; margin:0;">' + w.current.condition + '</p></div>';
+            if (w.stale) {
+                document.getElementById('weather-note').insertAdjacentHTML('afterbegin',
+                    'Updated ' + w.age_minutes + ' min ago (live update temporarily unavailable) · ');
+            }
             var hb = document.getElementById('hazard-badge');
-            hb.className = 'hazard-badge' + (w.hazard_status === 'Safe to Climb' ? '' : ' caution');
-            hb.innerHTML = '<i class="fas fa-' + (w.hazard_status === 'Safe to Climb' ? 'check-circle' : 'exclamation-triangle') + '"></i> ' + w.hazard_status;
+            var dry = w.hazard_status === 'Safe to Climb' || w.hazard_status === 'Conditions look dry';
+            hb.className = 'hazard-badge' + (dry ? '' : ' caution');
+            hb.innerHTML = '<i class="fas fa-' + (dry ? 'check-circle' : 'exclamation-triangle') + '"></i> ' + w.hazard_status;
             var fg = document.getElementById('weather-forecast');
             fg.innerHTML = '';
             w.forecast.forEach(function (d) {
@@ -389,7 +395,11 @@
         })
         .catch(function () {
             document.getElementById('weather-current').innerHTML =
-                '<i class="fas fa-cloud" style="font-size:40px;color:#94a3b8;"></i><div><h4 style="font-size:18px;margin:0;">Mock weather unavailable</h4></div>';
+                '<i class="fas fa-cloud" style="font-size:40px;color:#94a3b8;"></i><div><h4 style="font-size:18px;margin:0;">Weather temporarily unavailable</h4>' +
+                '<p style="color:#64748b; margin:0;">Please try again in a few minutes.</p></div>';
+            var hb = document.getElementById('hazard-badge');
+            hb.className = 'hazard-badge caution';
+            hb.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Check conditions on site';
         });
 
     // ---- Transport ----

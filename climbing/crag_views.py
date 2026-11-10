@@ -31,6 +31,7 @@ _WEATHER_CODES = {
     63: ('Rain', 'fa-cloud-showers-heavy'), 65: ('Heavy rain', 'fa-cloud-showers-heavy'),
     80: ('Rain showers', 'fa-cloud-showers-heavy'), 81: ('Rain showers', 'fa-cloud-showers-heavy'),
     82: ('Heavy showers', 'fa-cloud-showers-heavy'), 95: ('Thunderstorm', 'fa-bolt'),
+    96: ('Thunderstorm with hail', 'fa-bolt'), 99: ('Thunderstorm with hail', 'fa-bolt'),
 }
 
 
@@ -171,6 +172,37 @@ def crag_routes_api(request, pk):
     })
 
 
+# ---------------------------------------------------------------------------
+# Weather cache: one Singapore-wide forecast serves every crag page.
+# Fewer calls to Open-Meteo (free tier is rate-limited per server IP, and free hosts share IPs),
+# and if Open-Meteo is briefly unavailable the last good weather keeps showing.
+# ---------------------------------------------------------------------------
+import threading as _threading
+import time as _time
+
+WEATHER_TTL_SECONDS = 15 * 60          # ask Open-Meteo at most every 15 minutes
+WEATHER_MAX_STALE_SECONDS = 6 * 3600   # if it fails, show the last good weather for up to 6 hours
+_weather_cache = {"data": None, "at": 0.0}
+_weather_lock = _threading.Lock()
+
+
+def cached_singapore_weather():
+    now = _time.time()
+    with _weather_lock:
+        data, at = _weather_cache["data"], _weather_cache["at"]
+        if data is not None and now - at < WEATHER_TTL_SECONDS:
+            return dict(data, stale=False, age_minutes=int((now - at) // 60))
+        try:
+            fresh = live_singapore_weather()
+        except Exception as exc:                     # log the real reason (Render > Logs)
+            print(f"[weather] Open-Meteo request failed: {exc!r}", flush=True)
+            if data is not None and now - at < WEATHER_MAX_STALE_SECONDS:
+                return dict(data, stale=True, age_minutes=int((now - at) // 60))
+            raise
+        _weather_cache["data"], _weather_cache["at"] = fresh, now
+        return dict(fresh, stale=False, age_minutes=0)
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def crag_weather_api(request, pk):
@@ -178,7 +210,7 @@ def crag_weather_api(request, pk):
     if not crag:
         return Response({'error': 'Crags does not exist'}, status=status.HTTP_404_NOT_FOUND)
     try:
-        return Response({'results': live_singapore_weather()})
+        return Response({'results': cached_singapore_weather()})
     except Exception:
         return Response({'error': 'Live Singapore weather is temporarily unavailable. Please refresh shortly.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
