@@ -182,6 +182,7 @@ import time as _time
 
 WEATHER_TTL_SECONDS = 15 * 60          # ask Open-Meteo at most every 15 minutes
 WEATHER_MAX_STALE_SECONDS = 6 * 3600   # if it fails, show the last good weather for up to 6 hours
+WEATHER_RETRY_AFTER_FAIL = 5 * 60       # after a failure, wait before asking Open-Meteo again
 _weather_cache = {"data": None, "at": 0.0}
 _weather_lock = _threading.Lock()
 
@@ -192,9 +193,12 @@ def cached_singapore_weather():
         data, at = _weather_cache["data"], _weather_cache["at"]
         if data is not None and now - at < WEATHER_TTL_SECONDS:
             return dict(data, stale=False, age_minutes=int((now - at) // 60))
+        if data is None and now - _weather_cache.get("failed_at", 0.0) < WEATHER_RETRY_AFTER_FAIL:
+            raise RuntimeError("weather recently unavailable; not asking Open-Meteo again yet")
         try:
             fresh = live_singapore_weather()
         except Exception as exc:                     # log the real reason (Render > Logs)
+            _weather_cache["failed_at"] = now
             print(f"[weather] Open-Meteo request failed: {exc!r}", flush=True)
             if data is not None and now - at < WEATHER_MAX_STALE_SECONDS:
                 return dict(data, stale=True, age_minutes=int((now - at) // 60))
