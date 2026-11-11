@@ -29,8 +29,11 @@ window.GoClimbAR = (function () {
     var q = "server=" + encodeURIComponent(server) + (token ? "&token=" + encodeURIComponent(token) : "");
     if (isAndroid) {
       var fallback = encodeURIComponent(location.origin + appPage(path, true));
-      return "intent://" + path + "?" + q + "#Intent;scheme=goclimb;" +
-             (pkg ? "package=" + pkg + ";" : "") + "S.browser_fallback_url=" + fallback + ";end";
+      // No "package=": Chrome then opens whichever installed app handles goclimb:// links (GoClimbAR),
+      // whatever its package name is. Naming a package made Chrome say "not installed" whenever the
+      // APK's package differed from the website setting. Not installed -> the fallback page.
+      return "intent://" + path + "?" + q + "#Intent;scheme=goclimb;action=android.intent.action.VIEW;" +
+             "category=android.intent.category.BROWSABLE;S.browser_fallback_url=" + fallback + ";end";
     }
     return "goclimb://" + path + "?" + q;
   }
@@ -46,6 +49,10 @@ window.GoClimbAR = (function () {
     }
   }
 
-  return { open: open, link: link, isMobile: isAndroid || isIOS };
+  function direct(path) {                          // plain goclimb:// link (troubleshooting)
+    return "goclimb://" + path + "?server=" + encodeURIComponent(server) + (token ? "&token=" + encodeURIComponent(token) : "");
+  }
+
+  return { open: open, link: link, direct: direct, isMobile: isAndroid || isIOS };
 })();
 </script>

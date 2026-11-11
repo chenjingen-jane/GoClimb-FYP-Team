@@ -1,0 +1,3 @@
+# Render runs these on Linux: always keep Linux line endings
+*.sh text eol=lf
+render.yaml text eol=lf

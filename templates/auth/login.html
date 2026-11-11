@@ -130,24 +130,42 @@
         const m = document.cookie.split('; ').find(c => c.startsWith(name + '='));
         return m ? decodeURIComponent(m.split('=')[1]) : '';
     }
+    let originalLabel = null;
     document.getElementById('login-form').addEventListener('submit', async function (e) {
         e.preventDefault();
         const form = e.target;
-        const csrftoken = getCookie('csrftoken');
-        const res = await fetch('/api/auth/login/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-            credentials: 'include',
-            body: JSON.stringify({ username: form.email.value, password: form.password.value })
-        });
-        const result = await res.json();
-        if (res.ok && result.success) {
-            // A protected page (for example scheduling) sends guests here
-            // with ?next=.  Only allow local paths to prevent open redirects.
-            const next = new URLSearchParams(window.location.search).get('next');
-            window.location.href = next && next.startsWith('/') ? next : '/search/';
-        } else {
-            alert(result.error || 'Login failed, please try again');
+        const btn = form.querySelector('button[type="submit"]');
+        // Checking a password takes a few seconds on the server: send ONE login only and show it's working.
+        if (form.dataset.busy === '1') return;
+        form.dataset.busy = '1';
+        originalLabel = originalLabel || btn.innerHTML;      // remember the real text once
+        const label = originalLabel;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in…';
+        const unlock = () => { form.dataset.busy = ''; btn.disabled = false; btn.innerHTML = label; };
+        try {
+            const csrftoken = getCookie('csrftoken');
+            const res = await fetch('/api/auth/login/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                credentials: 'include',
+                body: JSON.stringify({ username: form.email.value, password: form.password.value })
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                // A protected page (for example scheduling) sends guests here with ?next=.
+                // Only allow local paths ("/x", not "//other-site") to prevent open redirects.
+                const next = new URLSearchParams(window.location.search).get('next');
+                const safe = next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\');
+                btn.innerHTML = '<i class="fas fa-check"></i> Signed in';
+                window.location.href = safe ? next : '/search/';
+            } else {
+                unlock();
+                alert(result.error || 'Login failed, please try again');
+            }
+        } catch (err) {
+            unlock();
+            alert('Could not reach the server. Please check your connection and try again.');
         }
     });
 </script>

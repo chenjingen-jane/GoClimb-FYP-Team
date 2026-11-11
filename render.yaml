@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: goclimb
+    runtime: python
+    plan: free
+    region: singapore      # close to Neon (Singapore) and to your users
+    buildCommand: "bash build.sh"
+    # 1 worker (scan previews live in memory) and 2 threads: the free plan has 512 MB of RAM.
+    startCommand: "python manage.py migrate --noinput && gunicorn config.wsgi:application --workers 1 --threads 2 --timeout 120"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GOCLIMB_ADMIN_TOKEN
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: GOCLIMB_AR_APP_URL
+        sync: false
+      - key: GOCLIMB_AR_ANDROID_PACKAGE
+        sync: false

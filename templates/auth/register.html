@@ -149,27 +149,43 @@
         const m = document.cookie.split('; ').find(c => c.startsWith(name + '='));
         return m ? decodeURIComponent(m.split('=')[1]) : '';
     }
+    let originalLabel = null;
     document.getElementById('register-form').addEventListener('submit', async function (e) {
         e.preventDefault();
         const form = e.target;
-        const csrftoken = getCookie('csrftoken');
-        const res = await fetch('/api/auth/register/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-            credentials: 'include',
-            body: JSON.stringify({
-                username: form.username.value,
-                email: form.email.value,
-                password: form.password.value,
-                password_confirm: form.password_confirm.value
-            })
-        });
-        const result = await res.json();
-        if (res.ok && result.success) {
-            alert('Registration successful, you are now logged in automatically');
-            window.location.href = '/search/';
-        } else {
-            alert(result.error || 'Registration failed, please try again');
+        const btn = form.querySelector('button[type="submit"]');
+        // Saving a password takes a few seconds on the server: send ONE request only and show it's working.
+        if (form.dataset.busy === '1') return;
+        form.dataset.busy = '1';
+        originalLabel = originalLabel || btn.innerHTML;      // remember the real text once
+        const label = originalLabel;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account…';
+        const unlock = () => { form.dataset.busy = ''; btn.disabled = false; btn.innerHTML = label; };
+        try {
+            const csrftoken = getCookie('csrftoken');
+            const res = await fetch('/api/auth/register/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                credentials: 'include',
+                body: JSON.stringify({
+                    username: form.username.value,
+                    email: form.email.value,
+                    password: form.password.value,
+                    password_confirm: form.password_confirm.value
+                })
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                alert('Registration successful, you are now logged in automatically');
+                window.location.href = '/search/';
+            } else {
+                unlock();
+                alert(result.error || 'Registration failed, please try again');
+            }
+        } catch (err) {
+            unlock();
+            alert('Could not reach the server. Please check your connection and try again.');
         }
     });
 </script>

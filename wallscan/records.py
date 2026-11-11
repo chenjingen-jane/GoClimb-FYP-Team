@@ -146,3 +146,31 @@ def filter_wall_list(user, items):
         item["mine"] = bool(sub and user and user.is_authenticated and sub.uploaded_by_id == user.id)
         out.append(item)
     return out
+
+
+# ---------------------------------------------------------------- database -> engine (after a wiped disk)
+
+def restore_missing_walls(engine):
+    """Free hosting wipes the server's disk on restart. Every wall has a backup (photo + routes) in the
+    database, so put any wall the engine has lost back, with exactly the same wall/hold/route IDs.
+    Returns (restored, failed)."""
+    have = {w["wall_id"] for w in engine.store.search_walls(limit=100000)}
+    missing = (WallSubmission.objects.exclude(wall_id__in=have)
+               .exclude(photo__isnull=True).exclude(doc__isnull=True).values_list("pk", flat=True))
+    restored, failed = 0, 0
+    for pk in missing:
+        sub = WallSubmission.objects.filter(pk=pk).first()      # one photo in memory at a time
+        if not sub or not sub.photo or not sub.doc:
+            continue
+        doc = dict(sub.doc, wall_id=sub.wall_id, name=sub.name or sub.doc.get("name"),
+                   venue=sub.venue or sub.doc.get("venue"), mode=sub.mode or sub.doc.get("mode"))
+        try:
+            if engine.store.restore_wall(doc, bytes(sub.photo), sub.lat, sub.lon,
+                                         "app" if sub.source == "app" else "web"):
+                restored += 1
+        except Exception as exc:                                # a bad backup must never take the site down
+            failed += 1
+            log.warning("could not restore wall %s: %s", sub.wall_id, exc)
+    if restored or failed:
+        log.info("restored %d wall(s) from the database (%d failed)", restored, failed)
+    return restored, failed

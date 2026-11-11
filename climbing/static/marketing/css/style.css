@@ -36,19 +36,29 @@ body {
   color: var(--text);
   background: var(--bg);
 }
+<<<<<<< HEAD
 
 /* Background photo layer: full photo with a dark blue overlay, like the app */
+=======
+>>>>>>> origin/main
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   background:
+<<<<<<< HEAD
     linear-gradient(rgba(18, 26, 38, 0.78), rgba(18, 26, 38, 0.6)),  /* overlay: raise 0.78/0.6 for darker */
+=======
+    linear-gradient(rgba(18, 26, 38, 0.78), rgba(18, 26, 38, 0.60)),
+>>>>>>> origin/main
     url("../images/Climbing.png") center / cover no-repeat;
   z-index: -1;
   pointer-events: none;
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
 img { max-width: 100%; display: block; }
 a { color: var(--accent); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
@@ -105,9 +115,15 @@ p { margin: 0; max-width: 62ch; }
 
 /* ---------- Hero ---------- */
 .hero {
+<<<<<<< HEAD
   background: transparent;    /* photo shows through, like the app */
   color: #fff;
   padding: 3rem 0 4rem;      /* space above and below */
+=======
+  background: transparent;
+  color: #fff;
+  padding: 3rem 0 4rem;
+>>>>>>> origin/main
   overflow: hidden;
 }
 .hero .wrap {
@@ -124,6 +140,10 @@ p { margin: 0; max-width: 62ch; }
 /* Video box: takes the video's own shape, nothing cropped */
 .hero-photo {
   position: relative;
+<<<<<<< HEAD
+=======
+  background: #000;
+>>>>>>> origin/main
   border-radius: 8px;
   overflow: hidden;
   background: #000;
@@ -134,6 +154,10 @@ p { margin: 0; max-width: 62ch; }
   width: 100%;
   height: auto;
 }
+<<<<<<< HEAD
+=======
+.hero-photo video { display: block; width: 100%; height: auto; }
+>>>>>>> origin/main
 
 /* Sound on/off button over the video */
 .sound-toggle {
@@ -160,7 +184,10 @@ p { margin: 0; max-width: 62ch; }
 /* ---------- Features ---------- */
 .features { padding: 2rem 0 5rem; }
 .features .wrap {
+<<<<<<< HEAD
   /* content sits on a solid card over the photo, like the app's crag cards */
+=======
+>>>>>>> origin/main
   background: var(--bg);
   border-radius: 16px;
   padding: 3rem;
@@ -275,10 +302,19 @@ p { margin: 0; max-width: 62ch; }
 .about-team h2 { font-size: 2rem; margin-bottom: 1.5rem; }
 
 /* ---------- Footer ---------- */
+<<<<<<< HEAD
 footer {
   background: rgba(20, 22, 25, 0.85);
   padding: 2rem 0;
   color: #c3c8cb;
   font-size: 0.95rem;
+=======
+footer { background: rgba(20, 22, 25, 0.85); padding: 2rem 0; color: #c3c8cb; font-size: 0.95rem; }
+footer .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.about img {
+  width: 100%;
+  border-radius: 8px;
+  margin: 1rem 0 2rem;
+>>>>>>> origin/main
 }
 footer .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }

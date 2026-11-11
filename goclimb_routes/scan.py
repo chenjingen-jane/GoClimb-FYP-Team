@@ -208,10 +208,13 @@ class ScanService:
 
     # ------------------------------------------------------------------ save / regenerate
     def save(self, scan_id: str, body: dict) -> dict:
-        """Persist a scan. Known walls and already-saved scans never create a second record."""
+        """Persist a scan. Known walls and already-saved scans never create a second record, unless the
+        user explicitly says the recognised wall is wrong ("save_as_new"): then a separate wall is created."""
         sess = self._get(scan_id)
-        if sess.status == "known" or sess.saved_wall_id:
-            return {"wall_id": sess.wall_id or sess.saved_wall_id, "created": False}
+        if sess.saved_wall_id:
+            return {"wall_id": sess.saved_wall_id, "created": False}
+        if sess.status == "known" and not body.get("save_as_new"):
+            return {"wall_id": sess.wall_id, "created": False}
         existing = (body.get("use_existing_wall_id") or "").strip()
         if existing:
             self.store.get_wall(existing)                      # raises WallNotFound if wrong

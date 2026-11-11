@@ -81,19 +81,44 @@
         <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu" aria-expanded="false"><i class="fas fa-bars"></i></button>
         
         <div class="nav-links">
+            <!-- Main features (everyone) -->
             <a href="/search/" {% if '/search' in request.path %}class="active"{% endif %}><i class="fas fa-search"></i> Search</a>
             <a href="/map/" {% if '/map' in request.path %}class="active"{% endif %}><i class="fas fa-map"></i> Map</a>
+            <a href="/ar/scan/" {% if '/ar/scan' in request.path or '/ar/wall' in request.path or '/ar/crag' in request.path or '/ar/route' in request.path %}class="active"{% endif %}><i class="fas fa-camera"></i> Wall Scan</a>
             <a href="/community/" {% if '/community' in request.path or '/forum' in request.path %}class="active"{% endif %}><i class="fas fa-comments"></i> Community</a>
-            <a href="/ar/scan/" {% if '/ar/' in request.path %}class="active"{% endif %}><i class="fas fa-camera"></i> Wall Scan</a>
             {% if request.user.is_authenticated %}
-                <a href="/favorites/" {% if '/favorites' in request.path %}class="active"{% endif %}><i class="fas fa-heart"></i> Favorites</a>
-                <a href="/dashboard/" {% if '/dashboard' in request.path %}class="active"{% endif %}><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-                {% if request.user.is_staff %}<a href="/manage/" {% if '/manage' in request.path %}class="active"{% endif %}><i class="fas fa-shield-alt"></i> Manage</a>
-                <a href="/ar/review/" {% if '/ar/review' in request.path %}class="active"{% endif %}><i class="fas fa-clipboard-check"></i> Review{% if review_pending %} <span style="background:#ef4444;color:#fff;border-radius:999px;padding:1px 7px;font-size:12px">{{ review_pending }}</span>{% endif %}</a>{% endif %}
                 <a href="/for-you/" {% if '/for-you' in request.path %}class="active"{% endif %}><i class="fas fa-star"></i> For you</a>
-                <a href="/profile/preferences/" {% if '/profile/preferences' in request.path %}class="active"{% endif %}><i class="fas fa-sliders-h"></i> Preferences</a>
-                <a href="/profile/" class="nav-user"><i class="fas fa-user-circle"></i> {{ request.user.username }}</a>
-                <a href="#" id="nav-logout" class="nav-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+
+                {% if request.user.is_staff %}
+                <!-- Admin tools: only rendered for staff accounts (the pages themselves also refuse non-staff) -->
+                <div class="nav-menu" data-menu>
+                    <button type="button" class="nav-menu-btn {% if '/ar/review' in request.path or '/manage' in request.path %}active{% endif %}" aria-expanded="false" aria-haspopup="true">
+                        <i class="fas fa-shield-alt"></i> Admin{% if review_pending %} <span class="nav-badge">{{ review_pending }}</span>{% endif %} <i class="fas fa-chevron-down nav-caret"></i>
+                    </button>
+                    <div class="nav-dropdown">
+                        <span class="nav-dd-title">Admin</span>
+                        <a href="/ar/review/" {% if request.path == '/ar/review/' or '/ar/review/' in request.path and '/locations' not in request.path %}class="active"{% endif %}><i class="fas fa-clipboard-check"></i> Review{% if review_pending %} <span class="nav-badge">{{ review_pending }}</span>{% endif %}</a>
+                        <a href="/ar/review/locations/" {% if '/ar/review/locations' in request.path %}class="active"{% endif %}><i class="fas fa-map-marker-alt"></i> Locations</a>
+                        <a href="/manage/" {% if '/manage' in request.path %}class="active"{% endif %}><i class="fas fa-tools"></i> Manage</a>
+                        {% if request.user.is_superuser %}<a href="/admin/"><i class="fas fa-user-shield"></i> Users &amp; site admin</a>{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Personal pages -->
+                <div class="nav-menu" data-menu>
+                    <button type="button" class="nav-menu-btn nav-user {% if '/profile' in request.path or '/favorites' in request.path or '/dashboard' in request.path %}active{% endif %}" aria-expanded="false" aria-haspopup="true">
+                        <i class="fas fa-user-circle"></i> {{ request.user.username }} <i class="fas fa-chevron-down nav-caret"></i>
+                    </button>
+                    <div class="nav-dropdown">
+                        <span class="nav-dd-title">My account</span>
+                        <a href="/profile/" {% if request.path == '/profile/' %}class="active"{% endif %}><i class="fas fa-id-card"></i> Profile</a>
+                        <a href="/favorites/" {% if '/favorites' in request.path %}class="active"{% endif %}><i class="fas fa-heart"></i> Favorites</a>
+                        <a href="/dashboard/" {% if '/dashboard' in request.path %}class="active"{% endif %}><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                        <a href="/profile/preferences/" {% if '/profile/preferences' in request.path %}class="active"{% endif %}><i class="fas fa-sliders-h"></i> Preferences</a>
+                        <a href="#" id="nav-logout" class="nav-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                    </div>
+                </div>
             {% else %}
                 <a href="/login/" {% if '/login' in request.path %}class="active"{% endif %}><i class="fas fa-sign-in-alt"></i> Login</a>
                 <a href="/register/" {% if '/register' in request.path %}class="active"{% endif %}><i class="fas fa-user-plus"></i> Register</a>
@@ -109,6 +134,25 @@
             this.setAttribute('aria-expanded', open ? 'true' : 'false');
             this.innerHTML = open ? '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
         });
+        // Admin / account menus: click to open, click outside or Esc to close
+        document.querySelectorAll('[data-menu] .nav-menu-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var menu = btn.parentElement, open = !menu.classList.contains('open');
+                document.querySelectorAll('[data-menu].open').forEach(function (m) {
+                    m.classList.remove('open'); m.querySelector('.nav-menu-btn').setAttribute('aria-expanded', 'false');
+                });
+                menu.classList.toggle('open', open);
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        });
+        function closeMenus() {
+            document.querySelectorAll('[data-menu].open').forEach(function (m) {
+                m.classList.remove('open'); m.querySelector('.nav-menu-btn').setAttribute('aria-expanded', 'false');
+            });
+        }
+        document.addEventListener('click', function (e) { if (!e.target.closest('[data-menu]')) closeMenus(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenus(); });
         // Global logout via the auth API (session-based).
         document.addEventListener('click', function (e) {
             if (e.target.closest && e.target.closest('#nav-logout')) {
@@ -138,17 +182,37 @@
             transition: color 0.3s;
         }
         .nav-links a:hover, .nav-links a.active { color: #3b82f6; }
-        .nav-links a.nav-user { color: #fff; font-weight: 600; }
         .nav-links a.nav-logout { color: #f87171; }
+        .nav-menu { position: relative; }
+        .nav-menu-btn { background: none; border: 0; color: #e2e8f0; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer;
+                        display: inline-flex; align-items: center; gap: 6px; padding: 0; transition: color 0.3s; }
+        .nav-menu-btn:hover, .nav-menu-btn.active { color: #3b82f6; }
+        .nav-menu-btn.nav-user { color: #fff; font-weight: 600; }
+        .nav-caret { font-size: 11px; transition: transform 0.2s; }
+        .nav-menu.open .nav-caret { transform: rotate(180deg); }
+        .nav-badge { background: #ef4444; color: #fff; border-radius: 999px; padding: 1px 7px; font-size: 12px; font-weight: 700; }
+        .nav-dropdown { display: none; position: absolute; right: 0; top: calc(100% + 14px); min-width: 230px; flex-direction: column;
+                        background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 8px;
+                        box-shadow: 0 16px 40px rgba(0,0,0,0.45); z-index: 2000; }
+        .nav-menu.open .nav-dropdown { display: flex; }
+        .nav-dropdown a { padding: 10px 12px; border-radius: 10px; display: flex; gap: 10px; align-items: center; }
+        .nav-dropdown a:hover { background: rgba(255,255,255,0.06); }
+        .nav-dd-title { display: none; }
         .nav-toggle { display: none; background: none; border: 0; color: #fff; font-size: 24px; cursor: pointer; padding: 4px 8px; }
         /* Tablets & phones: collapse the links into a menu */
-        @media (max-width: 1180px) {
+        @media (max-width: 980px) {
             nav { padding: 12px 18px; flex-wrap: wrap; position: sticky; top: 0; z-index: 1000; }
             nav h2 { font-size: 20px; }
             .nav-toggle { display: block; }
             .nav-links { display: none; width: 100%; flex-direction: column; align-items: stretch; gap: 0; padding-top: 8px; }
             nav.open .nav-links { display: flex; }
             .nav-links a { padding: 13px 6px; font-size: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+            /* phone menu: the admin/account groups are shown open, with a small heading */
+            .nav-menu-btn { display: none; }
+            .nav-dropdown { display: flex; position: static; min-width: 0; background: none; border: 0; box-shadow: none; padding: 0; }
+            .nav-dropdown a { border-radius: 0; padding: 13px 6px; }
+            .nav-dd-title { display: block; margin-top: 14px; padding: 6px; font-size: 12px; text-transform: uppercase;
+                            letter-spacing: .08em; color: #94a3b8; }
         }
         @media (max-width: 600px) {
             main { padding: 10px; }

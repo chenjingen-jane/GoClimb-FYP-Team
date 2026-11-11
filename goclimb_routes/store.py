@@ -197,6 +197,84 @@ class Store:
             self.redetect(wall_id)
         return wall_id
 
+    def restore_wall(self, doc: dict, image_bytes: bytes, lat: Optional[float] = None, lon: Optional[float] = None,
+                     source: str = "web") -> bool:
+        """Re-create a wall EXACTLY as it was (same wall, hold and route IDs) from a saved document + photo.
+
+        Used when the server's disk was wiped (e.g. free hosting restarts): the website keeps a backup of
+        every wall in its database and puts it back here. Returns False if the wall already exists.
+        """
+        wall_id = str(doc.get("wall_id") or "")
+        if not wall_id or "/" in wall_id or "\\" in wall_id or ".." in wall_id:
+            raise ValueError("invalid wall id")
+        with self._conn() as c:
+            if c.execute("SELECT 1 FROM walls WHERE wall_id=?", (wall_id,)).fetchone():
+                return False
+        try:
+            img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR) if image_bytes else None
+        except cv2.error:
+            img = None
+        if img is None:
+            raise ValueError("the backup photo could not be decoded")
+        ih, iw = img.shape[:2]
+        ext = "png" if image_bytes[:8] == b"\x89PNG\r\n\x1a\n" else "jpg"
+        mode = doc.get("mode") if doc.get("mode") in MODES else "indoor"
+        name = (doc.get("name") or "").strip() or "Wall"
+        venue = (doc.get("venue") or "").strip() or "Unknown"
+        if lat is not None and lon is not None and not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            lat = lon = None
+        if lat is None or lon is None:
+            lat = lon = None
+        holds = []
+        for h in doc.get("holds") or []:
+            hid = str(h.get("id") or "")
+            if not hid.startswith("H") or not hid[1:].isdigit():
+                continue
+            x, y = float(h["x"]), float(h["y"])
+            if not _in01(x, y):
+                continue
+            status = h.get("status") if h.get("status") in ("detected", "manual_added", "moved") else "detected"
+            holds.append((hid, x, y, float(h.get("confidence") or 1.0), str(h.get("type") or "device")[:20], status))
+        hold_ids = {h[0] for h in holds}
+        routes = []
+        for r in doc.get("routes") or []:
+            rid, ids = str(r.get("id") or ""), list(r.get("hold_ids") or [])
+            if not rid.startswith("R") or not rid[1:].isdigit() or len(ids) < 2 or any(i not in hold_ids for i in ids):
+                continue
+            limbs = {p["hold_id"]: {"limb": p["limb"], "status": "confirmed"} for p in r.get("points") or []
+                     if p.get("limb_status") == "confirmed" and p.get("limb") and p.get("hold_id")}
+            routes.append((rid, {"hold_ids": ids, "limbs": limbs, "edited": bool(r.get("edited")),
+                                 "source": "manual" if r.get("edited") else "generated"}))
+        next_hold = max([int(h[0][1:]) for h in holds] or [0]) + 1
+        next_route = max([int(r[0][1:]) for r in routes] or [0]) + 1
+
+        rel = f"walls/{wall_id}/original.{ext}"
+        folder = os.path.join(self.root, "walls", wall_id)
+        os.makedirs(folder, exist_ok=True)
+        try:
+            with open(os.path.join(self.root, rel), "wb") as f:
+                f.write(image_bytes)
+            ts = doc.get("updated_at") or _now()
+            with self._conn() as c:
+                c.execute("INSERT INTO walls(wall_id,name,venue,mode,photo_ref,image_w,image_h,lat,lon,vuforia_target,"
+                          "created_at,updated_at,next_hold_no,next_route_no,algo_version,schema_version,source,reviewed) "
+                          "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                          (wall_id, name, venue, mode, rel, iw, ih, lat, lon, doc.get("vuforia_target") or None,
+                           ts, ts, next_hold, next_route, ALGO_VERSION, SCHEMA_VERSION,
+                           source if source in ("web", "app") else "web", 1))
+                for hid, x, y, conf, typ, status in holds:
+                    c.execute("INSERT INTO holds(wall_id,hold_id,x,y,orig_x,orig_y,confidence,type,status) "
+                              "VALUES(?,?,?,?,?,?,?,?,?)", (wall_id, hid, x, y, x, y, conf, typ, status))
+                for rid, data in routes:
+                    c.execute("INSERT INTO routes(wall_id,route_id,data,created_at) VALUES(?,?,?,?)",
+                              (wall_id, rid, json.dumps(data), ts))
+        except Exception:
+            shutil.rmtree(folder, ignore_errors=True)
+            with self._conn() as c:
+                c.execute("DELETE FROM walls WHERE wall_id=?", (wall_id,))
+            raise
+        return True
+
     def set_reviewed(self, wall_id: str, reviewed: bool = True) -> None:
         """Admin marks an app upload as checked (holds/routes corrected where needed)."""
         with self._conn() as c:
