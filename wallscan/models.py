@@ -77,9 +77,22 @@ class WallSubmission(models.Model):
         return f"{self.name or self.wall_id} @ {self.venue} [{self.status}]"
 
     def visible_to(self, user):
+        """May this user see the wall in a list (with its review status)?"""
         if self.status == APPROVED:
             return True
         return bool(user and user.is_authenticated and (user.is_staff or self.uploaded_by_id == user.id))
+
+    def openable_by(self, user):
+        """May this user open the wall (routes, AR, wall page, offline download)?
+        Approved: everyone. Pending: the uploader and admins. Rejected: admins only
+        (the uploader still sees it listed as rejected, with the admin's note)."""
+        if self.status == APPROVED:
+            return True
+        if not (user and user.is_authenticated):
+            return False
+        if user.is_staff:
+            return True
+        return self.status == PENDING and self.uploaded_by_id == user.id
 
 
 class RouteReview(models.Model):

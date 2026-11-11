@@ -321,3 +321,55 @@ class RestoreAfterWipedDiskTests(IsolatedEngine, TestCase):
         out = StringIO()
         call_command("restore_walls", stdout=out)
         self.assertIn("Engine has 1 wall(s)", out.getvalue())
+
+
+class RejectedWallTests(IsolatedEngine, TestCase):
+    """Option B: a rejected wall is listed (with its status and note) for its uploader, but only admins can open it."""
+
+    def setUp(self):
+        super().setUp()
+        self.owner = climber("owner")
+        self.other = climber("other")
+        self.admin = climber("admin", staff=True)
+        self.wall = make_wall([("R1", APPROVED, "5A", "boulder", []), ("R2", APPROVED, "6A", "boulder", [])],
+                              status="rejected", uploader=self.owner)
+        self.wall.review_note = "Photo too dark"
+        self.wall.save()
+
+    def get(self, user, url):
+        self.client.force_login(user)
+        return self.client.get(url)
+
+    def test_nobody_but_admins_can_open_it(self):
+        wid = self.wall.wall_id
+        for user in (self.owner, self.other):
+            self.assertEqual(self.get(user, f"/ar/api/walls/{wid}/unity").status_code, 404, user.username)
+            self.assertEqual(self.get(user, f"/ar/walls/{wid}/routes/").status_code, 404, user.username)
+            self.assertEqual(self.get(user, f"/ar/wall/{wid}/").status_code, 404, user.username)
+        doc = self.get(self.admin, f"/ar/api/walls/{wid}/unity").json()
+        self.assertEqual({r["id"] for r in doc["routes"]}, {"R1", "R2"})
+        self.assertEqual(self.get(self.admin, f"/ar/wall/{wid}/").status_code, 200)
+
+    def test_uploader_still_sees_it_listed_as_rejected_with_the_note(self):
+        from .records import filter_wall_list
+        mine = filter_wall_list(self.owner, [{"wall_id": self.wall.wall_id}])
+        self.assertEqual(len(mine), 1)
+        self.assertEqual((mine[0]["review_status"], mine[0]["openable"], mine[0]["review_note"]), ("rejected", False, "Photo too dark"))
+        self.assertEqual(filter_wall_list(self.other, [{"wall_id": self.wall.wall_id}]), [])
+        self.assertTrue(filter_wall_list(self.admin, [{"wall_id": self.wall.wall_id}])[0]["openable"])
+        # thumbnail for the uploader's list card still loads; other users get nothing
+        self.assertEqual(self.get(self.owner, f"/ar/photo/{self.wall.wall_id}").status_code, 200)
+        self.assertEqual(self.get(self.other, f"/ar/photo/{self.wall.wall_id}").status_code, 404)
+
+    def test_recognising_a_rejected_wall_by_scanning_reveals_no_routes(self):
+        from .records import doc_for
+        doc = doc_for(self.other, self.wall, dict(self.wall.doc))
+        self.assertEqual(doc["routes"], [])
+        self.assertTrue(doc["unavailable"])
+        self.assertEqual(doc_for(self.owner, self.wall, dict(self.wall.doc))["routes"], [])
+        self.assertEqual(len(doc_for(self.admin, self.wall, dict(self.wall.doc))["routes"]), 2)
+
+    def test_pending_wall_still_opens_for_its_uploader(self):
+        pending = make_wall([("R1", APPROVED, "5A", "boulder", [])], status=PENDING, uploader=self.owner)
+        self.assertEqual(self.get(self.owner, f"/ar/api/walls/{pending.wall_id}/unity").status_code, 200)
+        self.assertEqual(self.get(self.other, f"/ar/api/walls/{pending.wall_id}/unity").status_code, 404)

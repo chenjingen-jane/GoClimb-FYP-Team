@@ -110,7 +110,8 @@ def ar_api(request, subpath=""):
     if m:
         wall_id = next(g for g in m.groups() if g)
         sub = WallSubmission.objects.filter(wall_id=wall_id).first()
-        if method in SAFE and not records.wall_visible(user, sub):
+        allowed = records.wall_visible if p.startswith("/photo/") else records.wall_openable
+        if method in SAFE and not allowed(user, sub):
             return _json({"error": "wall not found"}, 404)
 
     engine = _engine()
@@ -155,6 +156,10 @@ def _after(engine, user, how, method, p, out, sub):
     if p == "/api/scan" and isinstance(out, dict) and out.get("status") == "known" and out.get("wall_id"):
         known = WallSubmission.objects.filter(wall_id=out["wall_id"]).first()
         out["doc"] = records.doc_for(user, known, out.get("doc"))
+        if known is not None and not records.wall_openable(user, known):
+            out["unavailable"] = True
+            out["message"] = ("This wall isn't available (it was not approved or is waiting for review). "
+                              "If it's a different wall, save it as a new wall.")
         return out
 
     if method not in SAFE:
@@ -511,7 +516,7 @@ def wall_routes_api(request, wall_id):
     """GET: every approved route on this wall, ranked for the current climber (best + second best)."""
     user, how = records.ar_user(request)
     sub = WallSubmission.objects.filter(wall_id=wall_id).first()
-    if sub is None or not records.wall_visible(user, sub):
+    if sub is None or not records.wall_openable(user, sub):
         return _json({"error": "wall not found"}, 404)
     doc = _wall_doc(sub)
     if doc is None:
@@ -526,7 +531,7 @@ def wall_routes_api(request, wall_id):
 def wall_page(request, wall_id):
     """All routes on one wall: real photo, pick a route (recommended ones first), phone or browser AR."""
     sub = WallSubmission.objects.select_related("crag").filter(wall_id=wall_id).first()
-    if sub is None or not records.wall_visible(request.user, sub):
+    if sub is None or not records.wall_openable(request.user, sub):
         return HttpResponse("Wall not found.", status=404)
     ctx = _ar_app_context(request)
     ctx.update({"wall": sub, "page_data": {"wall_id": sub.wall_id, "route": request.GET.get("route", "")}})
@@ -539,7 +544,7 @@ def crag_ar_page(request, slug):
     from preferences.profile_data import profile_for
     from preferences.recommend import recommend_routes
     crag = get_object_or_404(Crag, slug=slug)
-    walls = [w for w in WallSubmission.objects.filter(crag=crag).defer("photo") if records.wall_visible(request.user, w)]
+    walls = [w for w in WallSubmission.objects.filter(crag=crag).defer("photo") if records.wall_openable(request.user, w)]
     all_rows, cards = [], []
     for w in walls:
         doc = _wall_doc(w)
