@@ -117,6 +117,11 @@ def ar_api(request, subpath=""):
     engine = _engine()
     code, out, ctype = engine.handle(method, p, request.GET.dict(), body, request.headers, is_admin=is_staff)
 
+    # Admin deletes a wall whose engine files are already gone (e.g. hosting disk wiped): remove the record too
+    if code == 404 and sub is not None and method == "DELETE" and is_staff and WALL_ONE.match(p):
+        sub.delete()
+        return _json({"ok": True})
+
     # Engine lost its files (e.g. hosting disk wiped)? Serve the database backup.
     if code == 404 and sub is not None and method in SAFE:
         if p.startswith("/photo/") and sub.photo:

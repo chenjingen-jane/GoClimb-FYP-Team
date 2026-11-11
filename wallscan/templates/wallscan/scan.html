@@ -60,6 +60,7 @@
   .ws-wall img { width: 100%; height: 120px; object-fit: cover; display: block; background: #e2e8f0; }
   .ws-wall div { padding: 8px 10px; font-size: 13px; line-height: 1.4; }
   .ws-wall.locked { opacity: .75; cursor: default; }
+  .ws-off.ws-del { border-color: #fecaca; color: #b91c1c; }
   .ws-locked-note { margin: 0 10px 10px; font-size: 12px; color: #991b1b; }
   .ws-off { display: block; width: calc(100% - 16px); margin: 0 8px 8px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b;
             border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: pointer; }
@@ -189,6 +190,7 @@
   const canvas = $("ws-canvas"), ctx = canvas.getContext("2d");
   let img = null, doc = null, scanId = null, hidden = new Set(), arWallId = null, stream = null, facing = "environment";
   let saveAsNew = false;                              // the scan matched a wall this user may not open
+  const IS_STAFF = {{ request.user.is_staff|yesno:"true,false" }};   // admins can delete walls
 
   function status(t) { $("ws-status").textContent = t || ""; }
   function csrf() { const m = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/); return m ? decodeURIComponent(m[1]) : ""; }
@@ -434,6 +436,23 @@
         off.onclick = (e) => { e.stopPropagation(); toggleOffline(w, off); };
         el.appendChild(off);
         showOffline(w.wall_id, off);
+        if (IS_STAFF) {                                   // admins: delete the wall for everyone
+          const del = document.createElement("button");
+          del.className = "ws-off ws-del"; del.type = "button";
+          del.innerHTML = '<i class="fas fa-trash"></i> Delete wall';
+          del.onclick = async (e) => {
+            e.stopPropagation();
+            if (!confirm(`Delete "${w.name}" permanently?\n\nIts photo, holds and routes are removed for everyone. This cannot be undone.`)) return;
+            del.disabled = true;
+            try {
+              await call("DELETE", `/api/walls/${w.wall_id}?confirm=1`);
+              await dropWall(w.wall_id).catch(() => {});
+              offlineStatus(`"${w.name}" was deleted.`);
+              loadWalls();
+            } catch (err) { del.disabled = false; offlineStatus(`Could not delete "${w.name}": ${err.message}`); }
+          };
+          el.appendChild(del);
+        }
         box.appendChild(el);
       });
       if (navigator.onLine) pruneDownloaded();

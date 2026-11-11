@@ -373,3 +373,63 @@ class RejectedWallTests(IsolatedEngine, TestCase):
         pending = make_wall([("R1", APPROVED, "5A", "boulder", [])], status=PENDING, uploader=self.owner)
         self.assertEqual(self.get(self.owner, f"/ar/api/walls/{pending.wall_id}/unity").status_code, 200)
         self.assertEqual(self.get(self.other, f"/ar/api/walls/{pending.wall_id}/unity").status_code, 404)
+
+
+class DeleteWallTests(IsolatedEngine, TestCase):
+    """Admins delete a wall everywhere (engine files + database), so it can never come back."""
+
+    def setUp(self):
+        super().setUp()
+        import cv2
+        import numpy as np
+        img = np.full((300, 400, 3), 200, np.uint8)
+        cv2.circle(img, (120, 120), 25, (30, 30, 200), -1)
+        photo = cv2.imencode(".jpg", img)[1].tobytes()
+        self.wid = str(uuid.uuid4())
+        doc = {"wall_id": self.wid, "name": "To delete", "venue": "Gym", "mode": "indoor",
+               "holds": [{"id": f"H{i}", "x": 0.1 * i, "y": 0.5, "status": "detected"} for i in range(1, 5)],
+               "routes": [{"id": "R1", "hold_ids": ["H1", "H2", "H3"], "points": []}]}
+        self.sub = WallSubmission.objects.create(wall_id=self.wid, name="To delete", venue="Gym", mode="indoor",
+                                                 status=APPROVED, doc=doc, photo=photo)
+        RouteReview.objects.create(wall=self.sub, route_id="R1", status=APPROVED, grade="5A")
+        self.admin = User.objects.create_user("admin", password="pw-12345678", is_staff=True, is_superuser=True)
+        self.user = User.objects.create_user("climber", password="pw-12345678")
+        from wallscan.views import _engine
+        self.engine = _engine()                                  # restores the wall into the engine
+        self.assertIn(self.wid, [w["wall_id"] for w in self.engine.store.search_walls(limit=100)])
+
+    def engine_has_it(self):
+        return self.wid in [w["wall_id"] for w in self.engine.store.search_walls(limit=100)]
+
+    def test_admin_delete_removes_record_and_engine_files(self):
+        self.client.force_login(self.admin)
+        r = self.client.delete(f"/ar/api/walls/{self.wid}?confirm=1")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertFalse(WallSubmission.objects.filter(wall_id=self.wid).exists())
+        self.assertFalse(RouteReview.objects.filter(route_id="R1", wall_id=self.sub.pk).exists())
+        self.assertFalse(self.engine_has_it())
+        self.client.get("/ar/review/")                           # the Review page must not bring it back
+        self.assertFalse(WallSubmission.objects.filter(wall_id=self.wid).exists())
+
+    def test_delete_still_works_when_engine_files_are_already_gone(self):
+        self.engine.store.delete_wall(self.wid, confirm=True)   # e.g. hosting disk wiped
+        self.engine.restored_from_db = True                      # and not restored yet
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.delete(f"/ar/api/walls/{self.wid}?confirm=1").status_code, 200)
+        self.assertFalse(WallSubmission.objects.filter(wall_id=self.wid).exists())
+
+    def test_non_admin_cannot_delete(self):
+        self.client.force_login(self.user)
+        self.assertIn(self.client.delete(f"/ar/api/walls/{self.wid}?confirm=1").status_code, (401, 403))
+        self.assertTrue(WallSubmission.objects.filter(wall_id=self.wid).exists())
+        self.assertTrue(self.engine_has_it())
+
+    def test_django_admin_delete_also_removes_engine_files(self):
+        from django.contrib import admin as dj_admin
+        from wallscan.admin import WallSubmissionAdmin
+        WallSubmissionAdmin(WallSubmission, dj_admin.site).delete_model(None, self.sub)
+        self.assertFalse(WallSubmission.objects.filter(wall_id=self.wid).exists())
+        self.assertFalse(self.engine_has_it())
+        self.client.force_login(self.admin)
+        self.client.get("/ar/review/")                           # would re-import it if the files were left
+        self.assertFalse(WallSubmission.objects.filter(wall_id=self.wid).exists())
