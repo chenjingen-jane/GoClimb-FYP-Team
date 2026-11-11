@@ -10,9 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="{% static 'marketing/images/favicon.svg' %}" type="image/svg+xml">
-  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}?v=5">
 </head>
-<body class="page-about">
+<body>
 
   <header class="site-header">
     <div class="wrap">
@@ -29,18 +29,17 @@
     </div>
   </header>
 
-  <main class="about">
+  <main class="showcase">
     <div class="wrap">
       <h1>See GoClimb in Action!</h1>
 
-      <div style="margin-top:24px; border-radius:12px; overflow:hidden; background:#000; aspect-ratio:16/9;">
+      <div class="showcase-video">
         <iframe
-        src="https://www.youtube-nocookie.com/embed/uaWTx1fhIN8?rel=0"
-        title="Go Climb demo video"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        referrerpolicy="strict-origin-when-cross-origin"
-        allowfullscreen
-        style="display:block; width:100%; height:100%; border:0;"></iframe>
+          src="https://www.youtube-nocookie.com/embed/uaWTx1fhIN8?rel=0"
+          title="Go Climb demo video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen></iframe>
       </div>
     </div>
   </main>
