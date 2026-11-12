@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="{% static 'marketing/images/favicon.svg' %}" type="image/svg+xml">
-  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}?v=6">
 </head>
 <body>
 
@@ -21,32 +21,33 @@
       </a>
       <nav class="nav" aria-label="Main">
         <a href="/about/">About</a>
+        <a href="/product_showcase/" class="active">Product Showcase</a>
         <a href="/login/">Log in</a>
         <a href="/register/" class="btn btn-primary">Sign up</a>
       </nav>
     </div>
   </header>
 
- <main class="about">
-  <div class="wrap">
-    <h1>About Go Climb</h1>
+  <main class="about">
+    <div class="wrap">
+      <h1>About Go Climb</h1>
 
-    <p class="about-intro">Welcome to GoClimb! Your helpful rock climbing buddy to guide you throughout your rock climbing progression and journey</p>
+      <p class="about-intro">Welcome to GoClimb! Your helpful rock climbing buddy to guide you throughout your rock climbing progression and journey</p>
 
-    <p>On GoClimb, we made it our mission to provide a technology that would help beginner climbers and advanced climbers to find crags and routes.</p>
+      <p>On GoClimb, we made it our mission to provide a technology that would help beginner climbers and advanced climbers to find crags and routes.</p>
 
-    <p>With us, a challenging crags and routes are not a problem, with our AR technology, beginner climbers could be assisted with their climbing routes.</p>
+      <p>With us, a challenging crags and routes are not a problem, with our AR technology, beginner climbers could be assisted with their climbing routes.</p>
 
-    <p>Not only that, our platform also provides a community that connects beginner and advanced climbers, so if you are looking to find another climbing buddy, our platform is your GO TO.</p>
+      <p>Not only that, our platform also provides a community that connects beginner and advanced climbers, so if you are looking to find another climbing buddy, our platform is your GO TO.</p>
 
-    <p>Our platform provides a lot of crag database in Singapore (for now), and soon will be expanding to your country, so stay tuned ~</p>
+      <p>Our platform provides a lot of crag database in Singapore (for now), and soon will be expanding to your country, so stay tuned ~</p>
 
-    <section class="about-team">
-      <h2>Meet our Team</h2>
-      <img src="{% static 'marketing/images/about-photo.png' %}" alt="The Go Climb team">
-    </section>
-  </div>
-</main>
+      <section class="about-team">
+        <h2>Meet our Team</h2>
+        <img src="{% static 'marketing/images/about-photo.png' %}" alt="The Go Climb team">
+      </section>
+    </div>
+  </main>
 
   <footer>
     <div class="wrap">

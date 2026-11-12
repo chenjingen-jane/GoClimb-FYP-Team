@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from . import views
 
@@ -7,6 +8,8 @@ app_name = "community"
 urlpatterns = [
     path("community/", views.community_page, name="page"),
     path("forum/", views.forum_redirect, name="forum_redirect"),        # old page -> new page (same posts)
+    path("product_showcase/", TemplateView.as_view(template_name="marketing/product_showcase.html"),
+         name="product_showcase"),
     path("community/meetups/<int:meetup_id>/calendar.ics", views.meetup_ics, name="meetup_ics"),
     path("community/review/places/", views.review_places, name="review_places"),
     path("community/photos/<int:photo_id>/", views.post_photo, name="post_photo"),

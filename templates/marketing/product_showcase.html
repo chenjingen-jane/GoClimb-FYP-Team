@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product Showcase – Go Climb</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="{% static 'marketing/images/favicon.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'marketing/css/style.css' %}?v=6">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a href="/" class="logo" aria-label="Go Climb home">
+        <img src="{% static 'marketing/images/logo.svg' %}" alt="" width="22" height="22">
+        Go Climb
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a href="/about/">About</a>
+        <a href="/product_showcase/" class="active">Product Showcase</a>
+        <a href="/login/">Log in</a>
+        <a href="/register/" class="btn btn-primary">Sign up</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="showcase">
+    <div class="wrap">
+      <h1>See GoClimb in Action!</h1>
+
+      <div class="showcase-video">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/uaWTx1fhIN8?rel=0"
+          title="Go Climb demo video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen></iframe>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 Go Climb</span>
+    </div>
+  </footer>
+
+</body>
+</html>
