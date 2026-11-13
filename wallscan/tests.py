@@ -433,3 +433,77 @@ class DeleteWallTests(IsolatedEngine, TestCase):
         self.client.force_login(self.admin)
         self.client.get("/ar/review/")                           # would re-import it if the files were left
         self.assertFalse(WallSubmission.objects.filter(wall_id=self.wid).exists())
+
+
+class PasswordResetRequestTests(TestCase):
+    """#6: the reset page records a request; an administrator sets a new password in the Review queue."""
+
+    NEW_PASSWORD = "Climb-Again-2026"
+
+    def setUp(self):
+        self.climber = User.objects.create_user("forgetful", email="Forget@Example.com", password="old-password-123")
+        self.admin = User.objects.create_user("boss", password="admin-pass-123", is_staff=True)
+
+    def ask(self, email):
+        return self.client.post("/api/auth/password-reset/", {"email": email}, content_type="application/json")
+
+    def act(self, user, action, password=""):
+        from .models import PasswordResetRequest
+        req = PasswordResetRequest.objects.get(user=self.climber)
+        self.client.force_login(user)
+        return self.client.post(f"/ar/review/password-resets/{req.pk}/", {"action": action, "password": password},
+                                content_type="application/json")
+
+    def test_request_is_recorded_once_and_repeats_are_merged(self):
+        from .models import PasswordResetRequest
+        first, second = self.ask("forget@example.com"), self.ask("forget@example.com")
+        self.assertEqual((first.status_code, second.status_code), (200, 200))
+        reqs = PasswordResetRequest.objects.filter(user=self.climber, done=False)
+        self.assertEqual(reqs.count(), 1)
+        self.assertEqual(reqs.get().times_requested, 2)
+
+    def test_unknown_or_inactive_email_records_nothing_and_looks_the_same(self):
+        from .models import PasswordResetRequest
+        User.objects.create_user("gone", email="gone@example.com", password="x-password-123", is_active=False)
+        known, unknown, inactive = self.ask("forget@example.com"), self.ask("nobody@example.com"), self.ask("gone@example.com")
+        self.assertEqual(known.json(), unknown.json())
+        self.assertEqual(known.json(), inactive.json())
+        self.assertEqual(PasswordResetRequest.objects.count(), 1)
+
+    def test_admin_sees_the_request_and_the_badge_counts_it(self):
+        self.ask("forget@example.com")
+        self.client.force_login(self.admin)
+        page = self.client.get("/ar/review/")
+        self.assertContains(page, "Password reset requests")
+        self.assertContains(page, "forgetful")
+        self.assertGreaterEqual(page.context["review_pending"], 1)
+
+    def test_admin_sets_a_new_password_and_the_climber_can_log_in(self):
+        from .models import PasswordResetRequest
+        self.ask("forget@example.com")
+        r = self.act(self.admin, "set_password", self.NEW_PASSWORD)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.client.logout()
+        self.assertTrue(self.client.login(username="forgetful", password=self.NEW_PASSWORD))
+        req = PasswordResetRequest.objects.get(user=self.climber)
+        self.assertEqual((req.done, req.outcome, req.handled_by), (True, PasswordResetRequest.PASSWORD_SET, self.admin))
+
+    def test_weak_password_is_refused_and_the_request_stays_open(self):
+        from .models import PasswordResetRequest
+        self.ask("forget@example.com")
+        self.assertEqual(self.act(self.admin, "set_password", "12345678").status_code, 400)
+        self.assertFalse(PasswordResetRequest.objects.get(user=self.climber).done)
+
+    def test_dismiss_keeps_the_old_password(self):
+        from .models import PasswordResetRequest
+        self.ask("forget@example.com")
+        self.assertEqual(self.act(self.admin, "dismiss").status_code, 200)
+        self.assertEqual(PasswordResetRequest.objects.get(user=self.climber).outcome, PasswordResetRequest.DISMISSED)
+        self.client.logout()
+        self.assertTrue(self.client.login(username="forgetful", password="old-password-123"))
+
+    def test_only_administrators_can_handle_requests(self):
+        from .models import PasswordResetRequest
+        self.ask("forget@example.com")
+        self.assertEqual(self.act(self.climber, "set_password", self.NEW_PASSWORD).status_code, 403)
+        self.assertFalse(PasswordResetRequest.objects.get(user=self.climber).done)

@@ -269,9 +269,48 @@ def review_list(request):
     if status in (PENDING, APPROVED, REJECTED):
         places = places.filter(status=status)
     place_counts = {s: PostPlace.objects.filter(kind="new", status=s).count() for s in (PENDING, APPROVED, REJECTED)}
+    from .models import PasswordResetRequest
+    resets = PasswordResetRequest.objects.filter(done=False).select_related("user")[:200]
     return render(request, "wallscan/review_list.html", {
         "walls": walls[:200], "status": status, "counts": counts, "places": places[:200], "place_counts": place_counts,
-        "grades": GRADE_CHOICES, "rock_types": ROCK_TYPE_CHOICES})
+        "grades": GRADE_CHOICES, "rock_types": ROCK_TYPE_CHOICES, "resets": resets})
+
+
+@require_POST
+def password_reset_action(request, pk):
+    """Admin handles a climber's password reset request: set a new password, or dismiss it."""
+    if not (request.user.is_authenticated and request.user.is_staff):
+        return _json({"error": "Administrator access is required."}, 403)
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    from .models import PasswordResetRequest
+    req = PasswordResetRequest.objects.select_related("user").filter(pk=pk, done=False).first()
+    if req is None:
+        return _json({"error": "This request was already handled."}, 404)
+    try:
+        body = json.loads(request.body or b"{}")
+    except ValueError:
+        return _json({"error": "Invalid request."}, 400)
+    action = body.get("action")
+    name = req.user.get_username()
+    if action == "set_password":
+        password = body.get("password") or ""
+        try:
+            validate_password(password, req.user)
+        except ValidationError as exc:
+            return _json({"error": " ".join(exc.messages)}, 400)
+        req.user.set_password(password)                    # also signs the climber out everywhere
+        req.user.save(update_fields=["password"])
+        req.outcome = PasswordResetRequest.PASSWORD_SET
+        message = f"Password for {name} updated. Give it to them privately; they can now log in with it."
+    elif action == "dismiss":
+        req.outcome = PasswordResetRequest.DISMISSED
+        message = f"Request from {name} dismissed. Their password was not changed."
+    else:
+        return _json({"error": "Choose set_password or dismiss."}, 400)
+    req.done, req.handled_by, req.handled_at = True, request.user, timezone.now()
+    req.save(update_fields=["done", "outcome", "handled_by", "handled_at"])
+    return _json({"ok": True, "message": message})
 
 
 @ensure_csrf_cookie

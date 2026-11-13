@@ -134,3 +134,28 @@ class RouteWallLink(models.Model):
 
     def __str__(self):
         return f"{self.route} -> {self.wall.wall_id}/{self.wall_route_id}"
+
+
+class PasswordResetRequest(models.Model):
+    """A climber asked for a password reset. GoClimb has no email service, so an
+    administrator handles it in the Review queue: sets a new password, or dismisses it.
+    One open request per climber; asking again just updates it."""
+
+    PASSWORD_SET, DISMISSED = "password_set", "dismissed"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="password_reset_requests", on_delete=models.CASCADE)
+    email = models.EmailField()
+    times_requested = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_requested_at = models.DateTimeField(default=timezone.now)
+    done = models.BooleanField(default=False)
+    outcome = models.CharField(max_length=20, blank=True)
+    handled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, related_name="+",
+                                   on_delete=models.SET_NULL)
+    handled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-last_requested_at"]
+
+    def __str__(self):
+        return f"Password reset for {self.user} ({'done' if self.done else 'open'})"
